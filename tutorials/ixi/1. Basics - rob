@@ -1,0 +1,31 @@
+// functions
+f = { arg a, b; a / b; };    // '/' means divide
+f.value(2, 10);            // regular style
+f.value(b: 2, a: 10);        // keyword style
+
+(
+f = { arg a, b;
+    var firstResult, finalResult;
+    firstResult = a + b;
+    finalResult = firstResult * 2;
+    finalResult;
+};
+f.value(2, 3);    // this will return (2 + 3) * 2 = 10
+)
+
+// local server
+s.avgCPU
+s.serverRunning
+s.addr//a NetAddr(127.0.0.1, 57110)
+s.postln;//localhost
+s.makeWindow; // shows window
+
+// custom servers
+n = NetAddr("127.0.0.1", 57200); // IP (get it from whatsmyip.org) and port
+p = Server.new("thor", n);
+p.makeWindow; // make the gui window
+p.boot; // boot it
+// try the server:
+{SinOsc.ar(444)}.play(p);
+// stop it
+p.quit;
