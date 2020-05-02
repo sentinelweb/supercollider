@@ -2,8 +2,7 @@
 s.plotTree
 (
 ~out = 0;
-c = TempoClock.default;
-c.tempo = 2; //120 bpm 4/4
+
 )
 ///////////////// bpf saw - from tut - make marbima sounds /////////////////////////////
 (
@@ -94,6 +93,8 @@ SynthDef(\hat, {
 ~freqScope = FreqScope.new(400, 200, 0, server: s);
 ////////////////////// sequencing ////////////////////////////////////////
 (
+c = TempoClock.default;
+c.tempo = 120/60; //120 bpm 4/4
 Pdef(\bassline).quant = [c.beatsPerBar];
 ~introSequence = Ppar([
 		Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 2,  \dura, 0.6, \metal, 1.2),
@@ -102,15 +103,21 @@ Pdef(\bassline).quant = [c.beatsPerBar];
 		Pbind(\instrument, \bass, \amp, 0.04, \freq, 10000, \dur, 8, \dura, 2),
 		~marimbaIntro
 	]);
-
+~rollRiff0 = Pseq([22].midicps,inf);
+~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24].midicps,inf);
+~rollRiff2 = Pxrand((Scale.major.degrees+26).midicps,inf);
+~rollRiff3 = Prand([30,34,32,34].midicps,inf);
+// seq 16 subunits: /dur = Pseq(1,5,8,13,15).func(n+1 - n)/16*barDuration
+//Pseq([~rollRiff1,~rollRiff0,~rollRiff0,~rollRiff2,~rollRiff0,~rollRiff3,~rollRiff0,~rollRiff0],inf)
 ~chorusSequence  = Ppar([
-		Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 1,  \dura, 0.3, \metal, 1.1),
+	Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 1,  \dura, 0.3, \metal, 1.1),
+	// Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, Pseq([0.25,0.25,0.5], inf),  \dura, 0.3, \metal, 1.1),
 		//Pbind(\instrument, \snare,\amp, 0.8, \cut_freq, 4000, \dur, 4,  \dura, 0.2),
 		Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 1, \dura, 0.2),
 	Pbind(\instrument, \bass, \amp, 0.04, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dur, 0.5, \dura, 0.5),
 	// use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
-	Pbind(\instrument,\bpfsaw,	\dur, 1,\amp,2.5,\freq,30,\pre, 0.5,
-		\atk,0.2,\sus,0.28,\rel,0.1,
+	Pbind(\instrument,\bpfsaw,	\dur, 1,\amp,2,\freq,~rollRiff3,\pre, 0.5,
+		\atk,0.2,\sus,0.278,\rel,0.1,
 		\rqmin, 0.2,\rqmax, 0.3,\cfhzmin,0,\cfhzmax,0,
 		\cfmin,25,\cfmax,40),
 	Pbind(\instrument,\bpfsaw,\dur,0.5,\amp,3,\freq,400,\detune,0,
@@ -120,13 +127,16 @@ Pdef(\bassline).quant = [c.beatsPerBar];
 	]);
 
 
+
 Pdef(\bassline, // why does dur affect the rate?
-	//~introSequence
+	// ~introSequence
 	~chorusSequence
 ).play;
 )
 Pdef(\bassline).stop;
 
+
+///////////////// testing ///////////////////////////////////
 (
 ~marimba.stop;
 ~marimba = Pbind(

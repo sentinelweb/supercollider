@@ -1,24 +1,10 @@
-s.plotTree
-s.meter
-MIDIClient.init
-
-// conenct all devices
-MIDIIn.connectAll;
-
-// to just connect 1 device
-MIDIClient.sources;
-MIDIIn.connect(1)
-
-MIDIdef(\noteOnTest).disable
-MIDIdef(\noteOnTest).enable
-MIDIdef(\noteOnTest).free
-MIDIdef.freeAll
-MIDIdef.cc(\ccTest,{"cc on:".postln})
-MIDIdef(\noteOnTest).disable
+///////////////////// synth ////////////////////////////////////
 
 (
 MIDIClient.init;
+
 MIDIIn.connectAll;
+MIDIClient.sources;
 (~notes == nil).if {
 ~notes = Array.newClear(128);
 ~bend=8192;
@@ -35,7 +21,7 @@ MIDIIn.connectAll;
 };
 
 MIDIdef.noteOn(\noteOnTest,{|vel, nn, chan, s|
-	["noteon",vel, nn, ~bend, ~duty].postln;
+	["noteon",vel, nn, chan, s, ~bend, ~duty].postln;
 	//Synth(\tone);
 	~notes[nn] = Synth(\tone,
 		[
@@ -127,13 +113,12 @@ MIDIdef.cc(\ccTest,{|val, ctnum, chan|
 		["filterNum",~filterNum].postln;
 	}
 
-
 	{"unmapped:"+chan +":"+ ctnum + " -> "+val};
 });
 
 SynthDef.new(\tone, {
 	arg freq=440, vel=100, amp=1, gate=0, bend = 0, duty = 0.5, bpFreq=0,
-	bpWid=1, vibHz=1, vibMul=0.1, atk=0.1, dec=1, sus=0.8, rel=2, filterNum=0;
+	bpWid=1, vibHz=1, vibMul=0.1, atk=0.1, dec=1, sus=0.8, rel=2, filterNum=0 /* not working */;
 	var sig, env, mod, scope , filterFreq;
 	sig = LFPulse.ar(freq * bend.midiratio,0, width:duty ).distort(0.2)!2;
 	env = EnvGen.kr(Env.adsr(atk,dec,sus,rel),gate, doneAction:2);
@@ -143,22 +128,9 @@ SynthDef.new(\tone, {
 	mod = SinOsc.kr(vibHz, mul:vibMul*freq);//.scope();
 	filterFreq = freq + (bpFreq* freq/2) + mod;
 	//filter = MoogFF;//[MoogFF, RLPF, Resonz, MoogVCF , MoogLadder][filterNum.source];
-	sig =  MoogLadder.ar(sig, filterFreq , bpWid); //MoogFF, RLPF, Resonz, MoogVCF (good), MoogLadder
+	sig =  MoogVCF.ar(sig, filterFreq , bpWid); //MoogFF, RLPF, Resonz, MoogVCF (good), MoogLadder
 	sig = sig * env * amp * vel;
 	Out.ar(0,sig);
 }).add
 )
 ~vibHz=4
-
-// test synth
-x = Synth(\tone, [\freq, 61.midicps, \amp, 0.1]);
-x.set(\freq, 500);
-x.set(\amp, 3);
-x.set(\gate, 1);
-x.set(\gate, 0);
-x.set(\bend, 4);
-x.set(\bpFreq,1000);
-x.set(\bpWid, 0.01);
-x.set(\vibHz, 0.25);
-x.set(\vibMul, 0.5);
-x.free
