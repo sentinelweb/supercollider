@@ -1,4 +1,7 @@
-//https://sccode.org/1-5cS
+
+(
+b = Bus.audio(s,2);
+)
 
 ( // if you like bass wobbles
 
@@ -20,8 +23,6 @@ SynthDef(\wobble, {
 	Out.ar(out, son * env);
 }).add;
 
-b = Bus.audio(s,2);
-
 SynthDef("delayBus", { | outBus = 0, inBus, wet = 0.4 |
 	var input = In.ar(inBus,2);
 	var rev = Greyhole.ar(input * wet,
@@ -38,6 +39,8 @@ Pbind(
 	\wfhi, Prand([4,6,8],inf),
 	\wfmax, Pseq([4,6,3,1,9]*500,inf),
 	\iphase, Prand([0,0.25,0.5,0.75], inf),
-	\degree, Pseq([2,0,-2,-2], 8), \octave, 2,
+	\degree, Pseq([2], 1),
+	\octave, 2,
 ).play;
 )
+
