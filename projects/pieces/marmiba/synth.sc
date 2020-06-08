@@ -122,13 +122,11 @@ SynthDef.new(\tone, {
 	var sig, env, mod, scope , filterFreq;
 	sig = LFPulse.ar(freq * bend.midiratio,0, width:duty ).distort(0.2)!2;
 	env = EnvGen.kr(Env.adsr(atk,dec,sus,rel),gate, doneAction:2);
-	"xx".postln;
 	scope = FreqScope.new(400, 200, 0, server: s);
-	["vibHz", vibHz, vibMul ,filterNum, filterNum.source.value].postln;
 	mod = SinOsc.kr(vibHz, mul:vibMul*freq);//.scope();
 	filterFreq = freq + (bpFreq* freq/2) + mod;
 	//filter = MoogFF;//[MoogFF, RLPF, Resonz, MoogVCF , MoogLadder][filterNum.source];
-	sig =  MoogVCF.ar(sig, filterFreq , bpWid); //MoogFF, RLPF, Resonz, MoogVCF (good), MoogLadder
+	sig =  MoogLadder.ar(sig, filterFreq , bpWid); //MoogFF, RLPF, Resonz, MoogVCF (good), MoogLadder
 	sig = sig * env * amp * vel;
 	Out.ar(0,sig);
 }).add

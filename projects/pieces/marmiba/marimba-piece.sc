@@ -106,7 +106,7 @@ Pdef(\bassline).quant = [c.beatsPerBar];
 ~rollRiff0 = Pseq([22].midicps,inf);
 ~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24].midicps,inf);
 ~rollRiff2 = Pxrand((Scale.major.degrees+26).midicps,inf);
-~rollRiff3 = Prand([30,34,32,34].midicps,inf);
+~rollRiff3 = Prand([30,28,32,34].midicps,inf);
 // seq 16 subunits: /dur = Pseq(1,5,8,13,15).func(n+1 - n)/16*barDuration
 //Pseq([~rollRiff1,~rollRiff0,~rollRiff0,~rollRiff2,~rollRiff0,~rollRiff3,~rollRiff0,~rollRiff0],inf)
 ~chorusSequence  = Ppar([
@@ -116,7 +116,7 @@ Pdef(\bassline).quant = [c.beatsPerBar];
 		Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 1, \dura, 0.2),
 	Pbind(\instrument, \bass, \amp, 0.04, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dur, 0.5, \dura, 0.5),
 	// use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
-	Pbind(\instrument,\bpfsaw,	\dur, 1,\amp,2,\freq,~rollRiff3,\pre, 0.5,
+	Pbind(\instrument,\bpfsaw,	\dur, 1,\amp,2,\freq,~rollRiff0,\pre, 0.5,
 		\atk,0.2,\sus,0.278,\rel,0.1,
 		\rqmin, 0.2,\rqmax, 0.3,\cfhzmin,0,\cfhzmax,0,
 		\cfmin,25,\cfmax,40),
@@ -128,9 +128,9 @@ Pdef(\bassline).quant = [c.beatsPerBar];
 
 
 
-Pdef(\bassline, // why does dur affect the rate?
-	// ~introSequence
-	~chorusSequence
+Pdef(\bassline,
+	~introSequence
+	// ~chorusSequence
 ).play;
 )
 Pdef(\bassline).stop;
