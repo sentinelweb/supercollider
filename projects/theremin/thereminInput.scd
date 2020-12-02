@@ -42,7 +42,7 @@ MIDIdef.cc(\ccPing,{|val, ctnum, chan|
 	c = switch (ctnum)
 	{25} {// record button (left)
 		if(~pingVal==1,{~pingVal=0},{~pingVal=1});
-		~pingVal.postln;
+		["pingval", ~pingVal].postln;
 		~ping.set(\gate,~pingVal);
 	}
 

@@ -44,20 +44,20 @@ SynthDef(\wobble, {
 }).add;
 )
 (
-(~thereminWobble != nil).if {~thereminWobble.free;};
+(~thereminFreqInput != nil).if {~thereminFreqInput.free;};
 ~thereminFreqInput = Synth(\thereminFreq,[\in, ~thereminBus, \out, ~thereminFreqBus]);
-~tempo = 128;
+~tempo = 125;
 (~thereminWobble != nil).if {~thereminWobble.free;};
 ~thereminWobble = Synth(\wobble,[
 	\out, b,
 	\legato, 0.98,
-	\wflo, ~tempo / 60,//Prand([1,2,3],inf),// change these to match tempo
-	\wfhi, ~tempo / 60 * 4,//Prand([4,6,8],inf),
-    \wobbleFreq, ~tempo / 60 / 4,
+	\wflo, ~tempo / 60, // 1 beat//Prand([1,2,3],inf),// change these to match tempo
+	\wfhi, ~tempo / 60 * 4, // 1/4 beat, //Prand([4,6,8],inf),
+    \wobbleFreq, ~tempo / 60 / 4,// 4 beats
 	\wfmax, 1000, //Pseq([4,6,3,1,9]*500,inf),
-	\iphase, 0.75, //Prand([0,0.25,0.5,0.75], inf),
+	\iphase, 0.0, //Prand([0,0.25,0.5,0.75], inf),
 	\degree, 2, //Pseq([2, 2, -2, 2], 1),
-	\freq, 37.midicps
+	\freq, 32.midicps
 ]
 );)
 (
