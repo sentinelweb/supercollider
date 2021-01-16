@@ -1,10 +1,15 @@
 (
-// /// REFS ////////////////////////////////////////////////////
+///// REFS ////////////////////////////////////////////////////////////////////////////
 // from https://www.youtube.com/watch?v=lGs7JOOVjag&t=1664s
 // https://www.youtube.com/watch?v=P85X1Ut3Hfc
-// ///////////////////////////////////////////////////////////
-
-//1. server config ////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
+///// TODOS ///////////////////////////////////////////////////////////////////////////
+// - make more sequences for chorus
+// - more song phases
+// - put reverb on precussion
+// -
+///////////////////////////////////////////////////////////////////////////////////////
+//1. server config ////////////////////////////////////////////////////////////////////
 s = Server.local;
 
 s.quit;
@@ -65,7 +70,7 @@ ServerQuit.removeAll;
 				Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 2,  \dura, 0.6, \metal, 1.2),
 				//Pbind(\instrument, \snare,\amp, 0.8, \cut_freq, 4000, \dur, 4,  \dura, 0.2),
 				Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 0.5, \dura, 0.2),
-				Pbind(\instrument, \bass, \amp, 0.04, \freq, 10000, \dur, 8, \dura, 2)
+				/*triangle*/Pbind(\instrument, \bass, \amp, 0.04, \freq, 10000, \dur, 8, \dura, 2)
 			]);
 
 			~intro = Pdef(\intro, Ppar([ ~introPercussion, ~introSequence]));
@@ -87,7 +92,7 @@ ServerQuit.removeAll;
 			~chorusPercussion  = Ppar([
 				Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 1,  \dura, 0.3, \metal, 1.1),
 				Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 1, \dura, 0.2),
-				Pbind(\instrument, \bass, \amp, 0.04, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dur, 0.5, \dura, 0.5),
+				/*triangle*/Pbind(\instrument, \bass, \amp, 0.04, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dur, 0.5, \dura, 0.5),
 			]);
 
 			~rollRiff0 = Pseq([22].midicps,inf);
@@ -98,7 +103,7 @@ ServerQuit.removeAll;
 			~chorusSequence  = Ppar([
 				// use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
 				Pbind(\instrument,\bpfsaw,	\dur, 1, \amp, 2, \pre, 0.5,
-					\freq, Prand([~rollRiff0/*,~rollRiff1,~rollRiff2,~rollRiff03*/],inf).trace,
+					\freq, Prand([~rollRiff0,~rollRiff1,~rollRiff2,~rollRiff03],inf).trace,
 					\atk, 0.2, \sus, 0.278, \rel, 0.1,
 					\rqmin, 0.2, \rqmax, 0.3, \cfhzmin, 0, \cfhzmax, 0,
 					\cfmin, 25, \cfmax, 40
@@ -217,10 +222,6 @@ e[\intro].value
 e[\introStop].value
 e[\chorus].value
 e[\chorusStop].value
-
-
-
-
 
 
 
