@@ -1,75 +1,236 @@
-// https://www.youtube.com/watch?v=lGs7JOOVjag&t=1664s
-s.plotTree
 (
+// /// REFS ////////////////////////////////////////////////////
+// from https://www.youtube.com/watch?v=lGs7JOOVjag&t=1664s
+// https://www.youtube.com/watch?v=P85X1Ut3Hfc
+// ///////////////////////////////////////////////////////////
+
+//1. server config ////////////////////////////////////////////
+s = Server.local;
+
+s.quit;
+// s.sync;
+
+s.options.outDevice_(
+	"Built-in Output"
+	//"Soundflower (2ch)"
+	//"MOTU UltraLite mk3 Hybrid"
+);
+s.options.numOutputBusChannels_(2);
+s.options.inDevice_("Built-in Microph");
+s.options.numInputBusChannels_(2);
+s.options.sampleRate_(44100);
+s.options.memSize_(2.pow(20));
+s.newBusAllocators;
+ServerBoot.removeAll;
+ServerTree.removeAll;
+ServerQuit.removeAll;
+
+// s.plotTree;
+// s.meter;
+
+//2. initialize global variables
 ~out = 0;
+~freqScope = FreqScope.new(400, 200, 0, server: s);
 
-)
-///////////////// bpf saw - from tut - make marbima sounds /////////////////////////////
-(
-SynthDef(\bpfsaw, {
-	arg pre=0,atk=2,sus=0,rel=3, c1=1, c2=(-1), freq=500, detune=0.2, pan=0, cfhzmin=0.1,cfhzmax=0.3, cfmin=500, cfmax=2000,rqmin=0.1, rqmax=0.2, lsf=200,ldb=0, amp=1;
-	var sig, env;
-	env= EnvGen.kr(Env([0,0,1,1,0],[pre,atk,sus,rel],[c1,0,c2]), doneAction:2);
-	sig = Saw.ar(freq * {LFNoise1.kr(0.5, detune).midiratio}!2);
-	sig = BPF.ar(sig,
-		{
-			LFNoise1.kr(
-				LFNoise1.kr(4).exprange(cfhzmin,cfhzmax)
-		).exprange(cfmin, cfmax)}!2,
-		{LFNoise1.kr(0.1).exprange(rqmin, rqmax)}!2
+~cleanup = {
+	s.newBusAllocators;
+	ServerBoot.removeAll;
+	ServerTree.removeAll;
+	ServerQuit.removeAll;
+};
+
+//3. define piece-specific functions
+~tempoClock = TempoClock.default;
+~tempoClock.tempo = 120/60; //120 bpm 4/4
+~makeEvents = {
+	// MIDIIn.connectAll;
+	e = Dictionary.new;
+
+	e.add(\intro -> {
+		Routine({
+
+			~introSequence = Pbind(
+				\instrument,\bpfsaw,
+				\dur, 1,//Pexprand(0.1,1,inf),
+				\freq, 4,//Pexprand(8,9,inf),
+				\detune, 0,
+				\rqmin, 0.005, \rqmaz, 0.008,
+				//\cfmin, 150, \cfmax, 1500,
+				\cfmin, Pseq([100, 200, 300, 400],inf), \cfmax, Pkey(\cfmin),
+				\amp, 0.3,
+				\out, 0
+			);
+
+			~introPercussion = Ppar([
+				Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 2,  \dura, 0.6, \metal, 1.2),
+				//Pbind(\instrument, \snare,\amp, 0.8, \cut_freq, 4000, \dur, 4,  \dura, 0.2),
+				Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 0.5, \dura, 0.2),
+				Pbind(\instrument, \bass, \amp, 0.04, \freq, 10000, \dur, 8, \dura, 2)
+			]);
+
+			~intro = Pdef(\intro, Ppar([ ~introPercussion, ~introSequence]));
+			~intro.quant = [~tempoClock.beatsPerBar];
+			~intro.play;
+			4.wait;
+
+			~chorus.stop;
+
+		}).play();
+	});
+
+	e.add(\introStop -> {
+		~intro.stop;
+	});
+
+	e.add(\chorus -> {
+		Routine({
+			~chorusPercussion  = Ppar([
+				Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 1,  \dura, 0.3, \metal, 1.1),
+				Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 1, \dura, 0.2),
+				Pbind(\instrument, \bass, \amp, 0.04, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dur, 0.5, \dura, 0.5),
+			]);
+
+			~rollRiff0 = Pseq([22].midicps,inf);
+			~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24].midicps,inf);
+			~rollRiff2 = Pxrand((Scale.major.degrees+26).midicps,inf);
+			~rollRiff3 = Prand([30,28,32,34].midicps,inf);
+
+			~chorusSequence  = Ppar([
+				// use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
+				Pbind(\instrument,\bpfsaw,	\dur, 1, \amp, 2, \pre, 0.5,
+					\freq, Prand([~rollRiff0/*,~rollRiff1,~rollRiff2,~rollRiff03*/],inf).trace,
+					\atk, 0.2, \sus, 0.278, \rel, 0.1,
+					\rqmin, 0.2, \rqmax, 0.3, \cfhzmin, 0, \cfhzmax, 0,
+					\cfmin, 25, \cfmax, 40
+				),
+				Pbind(\instrument, \bpfsaw, \dur, 0.5, \amp, 3, \freq, 400, \detune, 0,
+					\atk, 0,\rel, 1,
+					\rqmin, 0.0005, \rqmax, 0.008,
+					\cfmin, 200, \cfmax, 1000
+				),
+			]);
+			~chorus = Pdef(\chorus, Ppar([ ~chorusPercussion, ~chorusSequence]));
+			~chorus.quant = [~tempoClock.beatsPerBar];
+			~chorus.play;
+			// delay here might not need it
+			4.wait;
+
+			~intro.stop;
+		}).play();
+	});
+
+	e.add(\chorusStop -> {
+		~chorus.stop;
+	});
+};
+
+//4. register functions with ServerBoot/Quit/Tree
+// ServerBoot.add(~makeBusses);
+ServerQuit.add(~cleanup);
+
+//5. boot server
+s.waitForBoot({
+
+	s.sync;
+
+	//6a. SynthDefs
+	///////////////// bpf saw - from tut - make marbima sounds /////////////////////////////
+	(
+		SynthDef(\bpfsaw, {
+			arg pre=0,atk=2,sus=0,rel=3, c1=1, c2=(-1), freq=500, detune=0.2, pan=0, cfhzmin=0.1,cfhzmax=0.3, cfmin=500, cfmax=2000,rqmin=0.1, rqmax=0.2, lsf=200,ldb=0, amp=1;
+			var sig, env;
+			env= EnvGen.kr(Env([0,0,1,1,0],[pre,atk,sus,rel],[c1,0,c2]), doneAction:2);
+			sig = Saw.ar(freq * {LFNoise1.kr(0.5, detune).midiratio}!2);
+			sig = BPF.ar(sig,
+				{
+					LFNoise1.kr(
+						LFNoise1.kr(4).exprange(cfhzmin,cfhzmax)
+				).exprange(cfmin, cfmax)}!2,
+				{LFNoise1.kr(0.1).exprange(rqmin, rqmax)}!2
+			);
+			sig = BLowShelf.ar(sig, lsf, 0.5, ldb);
+			sig = Balance2.ar(sig[0],sig[1],pan);
+			sig = sig * env * amp;
+			Out.ar(~out, sig)
+		}).add;
+
+
+		/* ----------------------
+		Synthetic bass drum
+		---------------------- */
+		SynthDef(\bass, {
+			arg amp=0.5, dura =0.25, freq=50, metal = 1.1 ;
+			var amp_env, phase_env, phase, sig;
+
+			amp_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
+			phase_env = EnvGen.ar(Env.perc(1e-6,0.125));
+
+			phase = SinOsc.ar(20,0,pi) * phase_env;
+			sig = SinOsc.ar([freq,metal*freq],phase) * amp_env * amp;
+
+			Out.ar(~out, sig);
+		}).add;
+
+		/* ----------------------
+		Synthetic snare
+		---------------------- */
+		SynthDef(\snare, {
+			arg amp=0.5, cut_freq = 3000, dura = 0.25;
+			var amp_env, sig;
+
+			amp_env = EnvGen.ar(Env.perc(1e-6, dura), doneAction:2);
+			sig = LPF.ar( {WhiteNoise.ar(WhiteNoise.ar)}.dup * amp_env, cut_freq ) * amp;
+
+			Out.ar(~out, sig);
+		}).add;
+
+
+		/* ----------------------
+		Synthetic hi-hat
+		---------------------- */
+		SynthDef(\hat, {
+			arg amp=0.5, cut_freq=6000, dura=0.25;
+
+			var amp_env,sig  ;
+			amp_env = EnvGen.ar(Env.perc(1e-7, dura), doneAction:2);
+			sig = HPF.ar( {WhiteNoise.ar}.dup * amp_env, cut_freq ) * amp / 4;
+
+			Out.ar(~out, sig);
+		}).add;
 	);
-	sig = BLowShelf.ar(sig, lsf, 0.5, ldb);
-	sig = Balance2.ar(sig[0],sig[1],pan);
-	sig = sig * env * amp;
-	Out.ar(~out, sig)
-}).add;
 
+	s.sync;
 
-/* ----------------------
-   Synthetic bass drum
-   ---------------------- */
-SynthDef(\bass, {
-	arg amp=0.5, dura =0.25, freq=50, metal = 1.1 ;
-	var amp_env, phase_env, phase, sig;
+	//6b. register remaining functions
+	ServerTree.add(~makeEvents);
+	s.freeAll;
 
-	amp_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
-	phase_env = EnvGen.ar(Env.perc(1e-6,0.125));
+	s.sync;
 
-	phase = SinOsc.ar(20,0,pi) * phase_env;
-	sig = SinOsc.ar([freq,metal*freq],phase) * amp_env * amp;
+	"done".postln;
 
-	Out.ar(~out, sig);
-}).add;
-
-/* ----------------------
-   Synthetic snare
-   ---------------------- */
-SynthDef(\snare, {
-	arg amp=0.5, cut_freq = 3000, dura = 0.25;
-	var amp_env, sig;
-
-	amp_env = EnvGen.ar(Env.perc(1e-6, dura), doneAction:2);
-	sig = LPF.ar( {WhiteNoise.ar(WhiteNoise.ar)}.dup * amp_env, cut_freq ) * amp;
-
-	Out.ar(~out, sig);
-}).add;
-
-
-/* ----------------------
-   Synthetic hi-hat
-   ---------------------- */
-SynthDef(\hat, {
-	arg amp=0.5, cut_freq=6000, dura=0.25;
-
-	var amp_env,sig  ;
-	amp_env = EnvGen.ar(Env.perc(1e-7, dura), doneAction:2);
-	sig = HPF.ar( {WhiteNoise.ar}.dup * amp_env, cut_freq ) * amp / 4;
-
-	Out.ar(~out, sig);
-}).add;
+});
 )
+/////////////// test ///////////////////////////////
+~tempoClock.tempo = 120/60;
+e[\intro].value
+e[\introStop].value
+e[\chorus].value
+e[\chorusStop].value
 
 
+
+
+
+
+
+
+
+
+
+
+
+////////////////////// OLD code (yuk - del) ////////////////////////
 ////////////////////// test synths ////////////////////////
 ~marimbaTest =  Synth.new(\bpfsaw,[\freq,2,\atk, 0,\rqmin, 0.0005,\rqmax, 0.008]);
 ~marimbaTest.free
@@ -90,7 +251,7 @@ SynthDef(\hat, {
 ~snareTest = Synth.new(\snare,[\amp,0.8,\cut_freq,1000 /* 200-20000*/, \dur, 0.2 /* 0.05 - 1 */])
 ~hatTest = Synth.new(\hat,[\amp,0.8,\cut_freq,4000 /* 2000 heavy - 20000 lightest*/, \dur, 0.8 /* 0.05 closed - 1 open */])
 
-~freqScope = FreqScope.new(400, 200, 0, server: s);
+
 ////////////////////// sequencing ////////////////////////////////////////
 (
 c = TempoClock.default;
@@ -129,8 +290,8 @@ Pdef(\bassline).quant = [c.beatsPerBar];
 
 
 Pdef(\bassline,
-	~introSequence
-	// ~chorusSequence
+	//~introSequence
+	 ~chorusSequence
 ).play;
 )
 Pdef(\bassline).stop;
