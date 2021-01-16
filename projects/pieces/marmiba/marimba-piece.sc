@@ -4,10 +4,10 @@
 // https://www.youtube.com/watch?v=P85X1Ut3Hfc
 ///////////////////////////////////////////////////////////////////////////////////////
 ///// TODOS ///////////////////////////////////////////////////////////////////////////
-// - make more sequences for chorus
+// - make more sequences for chorus (make an event to change it)
 // - more song phases
 // - put reverb on precussion
-// -
+// - MIDI control
 ///////////////////////////////////////////////////////////////////////////////////////
 //1. server config ////////////////////////////////////////////////////////////////////
 s = Server.local;
@@ -37,6 +37,28 @@ ServerQuit.removeAll;
 ~out = 0;
 ~freqScope = FreqScope.new(400, 200, 0, server: s);
 
+~reverbBus = Bus.audio(s,2);
+
+~makeNodes = {
+	s.bind({
+		~mainGrp = Group.new;
+		~reverbGrp = Group.after(~mainGrp);
+		~reverbSynth = Synth.new(
+			\reverb,
+			[
+				\amp, 1,
+				\mix, 0.35,
+				\room, 0.15,
+				\damp, 0.5,
+				\amp, 1.0,
+				\in, ~reverbBus,
+				\out, ~out,
+			],
+			~reverbGrp
+		);
+	});
+};
+
 ~cleanup = {
 	s.newBusAllocators;
 	ServerBoot.removeAll;
@@ -53,7 +75,6 @@ ServerQuit.removeAll;
 
 	e.add(\intro -> {
 		Routine({
-
 			~introSequence = Pbind(
 				\instrument,\bpfsaw,
 				\dur, 1,//Pexprand(0.1,1,inf),
@@ -63,14 +84,15 @@ ServerQuit.removeAll;
 				//\cfmin, 150, \cfmax, 1500,
 				\cfmin, Pseq([100, 200, 300, 400],inf), \cfmax, Pkey(\cfmin),
 				\amp, 0.3,
-				\out, 0
+				\out, ~out
 			);
 
 			~introPercussion = Ppar([
-				Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 2,  \dura, 0.6, \metal, 1.2),
+				Pbind(\instrument, \bass, \amp, 0.8,  \dur, 2, \freq, 20,\dura, 0.6, \metal, 1.2,\group, ~mainGrp, \out, ~reverbBus),
 				//Pbind(\instrument, \snare,\amp, 0.8, \cut_freq, 4000, \dur, 4,  \dura, 0.2),
-				Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 0.5, \dura, 0.2),
-				/*triangle*/Pbind(\instrument, \bass, \amp, 0.04, \freq, 10000, \dur, 8, \dura, 2)
+				Pbind(\instrument, \hat,  \amp, 0.4, \dur, 0.5, \cut_freq, 5000, \dura, 0.2, \group, ~mainGrp, \out, ~reverbBus),
+				/*triangle*/
+				Pbind(\instrument, \bass, \amp, 0.04, \dur, 8, \freq, 10000, \dura, 2, \group, ~mainGrp, \out, ~reverbBus)
 			]);
 
 			~intro = Pdef(\intro, Ppar([ ~introPercussion, ~introSequence]));
@@ -90,9 +112,10 @@ ServerQuit.removeAll;
 	e.add(\chorus -> {
 		Routine({
 			~chorusPercussion  = Ppar([
-				Pbind(\instrument, \bass, \amp, 0.8, \freq, 20,       \dur, 1,  \dura, 0.3, \metal, 1.1),
-				Pbind(\instrument, \hat,  \amp, 0.4, \cut_freq, 5000, \dur, 1, \dura, 0.2),
-				/*triangle*/Pbind(\instrument, \bass, \amp, 0.04, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dur, 0.5, \dura, 0.5),
+				Pbind(\instrument, \bass, \amp, 0.8, \dur, 1,  \freq, 20, \dura, 0.3, \metal, 1.1, \group, ~mainGrp, \out, ~reverbBus),
+				Pbind(\instrument, \hat,  \amp, 0.4, \dur, 1, \cut_freq, 5000, \dura, 0.2, \group, ~mainGrp, \out, ~reverbBus),
+				/*triangle*/
+				Pbind(\instrument, \bass, \amp, 0.04,  \dur, 0.5, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dura, 0.5,\group, ~mainGrp, \out, ~reverbBus),
 			]);
 
 			~rollRiff0 = Pseq([22].midicps,inf);
@@ -106,12 +129,14 @@ ServerQuit.removeAll;
 					\freq, Prand([~rollRiff0,~rollRiff1,~rollRiff2,~rollRiff03],inf).trace,
 					\atk, 0.2, \sus, 0.278, \rel, 0.1,
 					\rqmin, 0.2, \rqmax, 0.3, \cfhzmin, 0, \cfhzmax, 0,
-					\cfmin, 25, \cfmax, 40
+					\cfmin, 25, \cfmax, 40,
+					\out, ~out
 				),
 				Pbind(\instrument, \bpfsaw, \dur, 0.5, \amp, 3, \freq, 400, \detune, 0,
 					\atk, 0,\rel, 1,
 					\rqmin, 0.0005, \rqmax, 0.008,
-					\cfmin, 200, \cfmax, 1000
+					\cfmin, 200, \cfmax, 1000,
+					\out, ~out
 				),
 			]);
 			~chorus = Pdef(\chorus, Ppar([ ~chorusPercussion, ~chorusSequence]));
@@ -130,7 +155,6 @@ ServerQuit.removeAll;
 };
 
 //4. register functions with ServerBoot/Quit/Tree
-// ServerBoot.add(~makeBusses);
 ServerQuit.add(~cleanup);
 
 //5. boot server
@@ -159,12 +183,11 @@ s.waitForBoot({
 			Out.ar(~out, sig)
 		}).add;
 
-
 		/* ----------------------
 		Synthetic bass drum
 		---------------------- */
 		SynthDef(\bass, {
-			arg amp=0.5, dura =0.25, freq=50, metal = 1.1 ;
+			arg amp = 0.5, dura = 0.25, freq = 50, metal = 1.1, out = 0 ;
 			var amp_env, phase_env, phase, sig;
 
 			amp_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
@@ -173,20 +196,20 @@ s.waitForBoot({
 			phase = SinOsc.ar(20,0,pi) * phase_env;
 			sig = SinOsc.ar([freq,metal*freq],phase) * amp_env * amp;
 
-			Out.ar(~out, sig);
+			Out.ar(out, sig);
 		}).add;
 
 		/* ----------------------
 		Synthetic snare
 		---------------------- */
 		SynthDef(\snare, {
-			arg amp=0.5, cut_freq = 3000, dura = 0.25;
+			arg amp = 0.5, cut_freq = 3000, dura = 0.25, out = 0;
 			var amp_env, sig;
 
 			amp_env = EnvGen.ar(Env.perc(1e-6, dura), doneAction:2);
 			sig = LPF.ar( {WhiteNoise.ar(WhiteNoise.ar)}.dup * amp_env, cut_freq ) * amp;
 
-			Out.ar(~out, sig);
+			Out.ar(out, sig);
 		}).add;
 
 
@@ -194,19 +217,39 @@ s.waitForBoot({
 		Synthetic hi-hat
 		---------------------- */
 		SynthDef(\hat, {
-			arg amp=0.5, cut_freq=6000, dura=0.25;
+			arg amp = 0.5, cut_freq = 6000, dura = 0.25, out = 0;
 
 			var amp_env,sig  ;
 			amp_env = EnvGen.ar(Env.perc(1e-7, dura), doneAction:2);
 			sig = HPF.ar( {WhiteNoise.ar}.dup * amp_env, cut_freq ) * amp / 4;
 
-			Out.ar(~out, sig);
+			Out.ar(out, sig);
+		}).add;
+
+		/* ----------------------
+		reverb
+		---------------------- */
+		SynthDef(\reverb, {
+			arg out, mix = 0.25, room = 0.15, damp = 0.5, amp = 1.0;
+			var signal;
+
+			signal = In.ar(~reverbBus, 2);
+
+			Out.ar(out,
+				FreeVerb2.ar( // FreeVerb2 - true stereo UGen
+					signal[0], // Left channel
+					signal[1], // Right Channel
+					mix, room, damp, amp
+				)
+			); // same params as FreeVerb 1 chn version
+
 		}).add;
 	);
 
 	s.sync;
 
 	//6b. register remaining functions
+	ServerTree.add(~makeNodes);
 	ServerTree.add(~makeEvents);
 	s.freeAll;
 
@@ -217,13 +260,15 @@ s.waitForBoot({
 });
 )
 /////////////// test ///////////////////////////////
-~tempoClock.tempo = 120/60;
+~tempoClock.tempo = 128/60;
 e[\intro].value
 e[\introStop].value
 e[\chorus].value
 e[\chorusStop].value
 
-
+x = ~introPercussion.play
+x.stop
+~reverbSynth.set(\mix, 0.3, \room, 1, \damp, 1)
 
 
 
