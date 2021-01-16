@@ -110,6 +110,9 @@ Pbind(
 )
 
 //////////////////////////////////////////////////////////
+IDEAS
+Make one bell go for 5 mins and have a warble with the breath rhythm
+
 https://sccode.org/1-4VL
 //«Tibetan prayer bells» by wondersluyter
 (
@@ -181,11 +184,23 @@ SynthDef(\prayer_bell, { |outbus, t_trig = 1, sing_switch = 0, freq = 2434, amp 
 }).add;
 )
 
-~bowl = Synth(\prayer_bell, [\freq,250,\amp,0.3,\lag,0,\trig,2,\sing_switch,1] )
+~bowl = Synth(\prayer_bell, [\freq,120,\amp,0.1,\lag,0,\trig,1,\sing_switch,0, \decayscale, 3] )
 ~bowl.set(\gate, 0)
 ~bowl.free
+
+~bowlsSeq = Pdef(\bowls,
+	Pmono(\prayer_bell,
+		\dur, 15,
+		\freq, Pseq([120, 240, 360, 440], inf),
+		\sing_switch,1,
+		\amp,0.3
+)
+)
+~bowlsSeq.play
+~bowlsSeq.stop
+
 (
-Pdef(\bell_1,
+~bowlsSeqOrig = Pdef(\bell_1,
   Pmono(\prayer_bell,
     \dur, Pseq([8, 20], inf),
     \freq, Pseq([2500, 500], inf),
@@ -194,5 +209,7 @@ Pdef(\bell_1,
     \trig, Pseq([0.1], inf) * Pwhite(0.5, 1, inf) * Pwrand([0, 1], [1, 5].normalizeSum, inf),
     \sing_switch, Pseq((0!4) ++ (1!4), inf)
   )
-).play
 )
+)
+~bowlsSeqOrig.play
+~bowlsSeqOrig.stop
