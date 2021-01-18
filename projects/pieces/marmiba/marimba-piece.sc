@@ -6,8 +6,11 @@
 ///// TODOS ///////////////////////////////////////////////////////////////////////////
 // - make more sequences for chorus (make an event to change it)
 // - more song phases
-// - put reverb on precussion
+// + put reverb on precussion
 // - MIDI control
+// - when intro tempo isnt 120 there are artifacts (some delay somewhere?)
+// - look at levels and EQ to pop more
+// - find wood wind sound (drone)
 ///////////////////////////////////////////////////////////////////////////////////////
 //1. server config ////////////////////////////////////////////////////////////////////
 s = Server.local;
@@ -29,7 +32,7 @@ s.newBusAllocators;
 ServerBoot.removeAll;
 ServerTree.removeAll;
 ServerQuit.removeAll;
-
+//Object.browse; // also see Language->look up implementations
 // s.plotTree;
 // s.meter;
 
@@ -73,6 +76,12 @@ ServerQuit.removeAll;
 	// MIDIIn.connectAll;
 	e = Dictionary.new;
 
+	//~bass = Dictionary.new;
+	//~bass.putPairs([\note , 30, \dura ,2] );
+	~config = (
+		bass:(note:30, dura:2)
+	);
+
 	e.add(\intro -> {
 		Routine({
 			~introSequence = Pbind(
@@ -81,18 +90,33 @@ ServerQuit.removeAll;
 				\freq, 4,//Pexprand(8,9,inf),
 				\detune, 0,
 				\rqmin, 0.005, \rqmaz, 0.008,
-				//\cfmin, 150, \cfmax, 1500,
-				\cfmin, Pseq([100, 200, 300, 400],inf), \cfmax, Pkey(\cfmin),
-				\amp, 0.3,
+				\cfmin, Pseq([100, 200, 300, 400], inf), \cfmax, Pkey(\cfmin),
+				\amp, 0.5,
 				\out, ~out
 			);
 
 			~introPercussion = Ppar([
-				Pbind(\instrument, \bass, \amp, 0.8,  \dur, 2, \freq, 20,\dura, 0.6, \metal, 1.2,\group, ~mainGrp, \out, ~reverbBus),
+				Pbind(\instrument, \bass,
+					\dur, 2,
+					\amp, 0.8,
+					\midinote, Pfunc({~config[\bass][\note] ?? 32}),
+					\dura, Pfunc({~config[\bass][\dura] ?? 2}),
+					\metal, 1.01,
+					\group, ~mainGrp, \out, ~reverbBus),
 				//Pbind(\instrument, \snare,\amp, 0.8, \cut_freq, 4000, \dur, 4,  \dura, 0.2),
-				Pbind(\instrument, \hat,  \amp, 0.4, \dur, 0.5, \cut_freq, 5000, \dura, 0.2, \group, ~mainGrp, \out, ~reverbBus),
+				Pbind(\instrument, \hat,
+					\dur, 0.5,
+					\amp, 0.4,
+					\cut_freq, 5000,
+					\dura, 0.2,
+					\group, ~mainGrp, \out, ~reverbBus),
 				/*triangle*/
-				Pbind(\instrument, \bass, \amp, 0.04, \dur, 8, \freq, 10000, \dura, 2, \group, ~mainGrp, \out, ~reverbBus)
+				Pbind(\instrument, \bass,
+					\dur, 8,
+					\amp, 0.04,
+					\freq, 10000,
+					\dura, 2,
+					\group, ~mainGrp, \out, ~reverbBus)
 			]);
 
 			~intro = Pdef(\intro, Ppar([ ~introPercussion, ~introSequence]));
@@ -111,22 +135,15 @@ ServerQuit.removeAll;
 
 	e.add(\chorus -> {
 		Routine({
-			~chorusPercussion  = Ppar([
-				Pbind(\instrument, \bass, \amp, 0.8, \dur, 1,  \freq, 20, \dura, 0.3, \metal, 1.1, \group, ~mainGrp, \out, ~reverbBus),
-				Pbind(\instrument, \hat,  \amp, 0.4, \dur, 1, \cut_freq, 5000, \dura, 0.2, \group, ~mainGrp, \out, ~reverbBus),
-				/*triangle*/
-				Pbind(\instrument, \bass, \amp, 0.04,  \dur, 0.5, \freq, Prand((Scale.major.degrees+108).midicps,inf), \dura, 0.5,\group, ~mainGrp, \out, ~reverbBus),
-			]);
-
-			~rollRiff0 = Pseq([22].midicps,inf);
-			~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24].midicps,inf);
-			~rollRiff2 = Pxrand((Scale.major.degrees+26).midicps,inf);
-			~rollRiff3 = Prand([30,28,32,34].midicps,inf);
+			~rollRiff0 = Pseq([22],inf);
+			~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24],inf);
+			~rollRiff2 = Pxrand((Scale.major.degrees+26),inf);
+			~rollRiff3 = Prand([30,28,32,34],inf);
 
 			~chorusSequence  = Ppar([
 				// use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
 				Pbind(\instrument,\bpfsaw,	\dur, 1, \amp, 2, \pre, 0.5,
-					\freq, Prand([~rollRiff0,~rollRiff1,~rollRiff2,~rollRiff03],inf).trace,
+					\midinote, Prand([~rollRiff0, ~rollRiff1, ~rollRiff2, ~rollRiff03], inf),
 					\atk, 0.2, \sus, 0.278, \rel, 0.1,
 					\rqmin, 0.2, \rqmax, 0.3, \cfhzmin, 0, \cfhzmax, 0,
 					\cfmin, 25, \cfmax, 40,
@@ -139,6 +156,28 @@ ServerQuit.removeAll;
 					\out, ~out
 				),
 			]);
+
+			~chorusPercussion  = Ppar([
+				Pbind(\instrument, \bass, \dur, 1,
+					\amp, 0.8,
+					\midinote, Pfunc({~config[\bass][\note] ?? 32}),
+					\dura, Pfunc({~config[\bass][\dura] ?? 2}),
+					\metal, 1.1,
+					\group, ~mainGrp, \out, ~reverbBus),
+				Pbind(\instrument, \hat,  \dur, 1,
+					\amp, 0.4,
+					\cut_freq, 5000,
+					\dura, 0.2,
+					\group, ~mainGrp, \out, ~reverbBus),
+				/*triangle*/
+				Pbind(\instrument, \bass,  \dur, 0.5,
+					\amp, 0.04,
+					\freq, Prand((Scale.major.degrees+108).midicps,inf),
+					\dura, 0.5,
+					\group, ~mainGrp, \out, ~reverbBus),
+			]);
+
+
 			~chorus = Pdef(\chorus, Ppar([ ~chorusPercussion, ~chorusSequence]));
 			~chorus.quant = [~tempoClock.beatsPerBar];
 			~chorus.play;
@@ -178,7 +217,7 @@ s.waitForBoot({
 				{LFNoise1.kr(0.1).exprange(rqmin, rqmax)}!2
 			);
 			sig = BLowShelf.ar(sig, lsf, 0.5, ldb);
-			sig = Balance2.ar(sig[0],sig[1],pan);
+			sig = Balance2.ar(sig[0], sig[1], pan);
 			sig = sig * env * amp;
 			Out.ar(~out, sig)
 		}).add;
@@ -194,7 +233,7 @@ s.waitForBoot({
 			phase_env = EnvGen.ar(Env.perc(1e-6,0.125));
 
 			phase = SinOsc.ar(20,0,pi) * phase_env;
-			sig = SinOsc.ar([freq,metal*freq],phase) * amp_env * amp;
+			sig = SinOsc.ar([freq, metal*freq], phase) * amp_env * amp;
 
 			Out.ar(out, sig);
 		}).add;
@@ -260,20 +299,18 @@ s.waitForBoot({
 });
 )
 /////////////// test ///////////////////////////////
-~tempoClock.tempo = 128/60;
-e[\intro].value
-e[\introStop].value
-e[\chorus].value
-e[\chorusStop].value
+~tempoClock.tempo = 120/60;
+e[\intro].()
+e[\introStop].()
+e[\chorus].()
+e[\chorusStop].()
 
 x = ~introPercussion.play
 x.stop
 ~reverbSynth.set(\mix, 0.3, \room, 1, \damp, 1)
-
-
-
-
-
+~config[\bass][\note].postln
+~config[\bass].putPairs([\note, [30,32,34,35].choose, \dura, 2]);
+~bassTest = Synth.new(\bass,[\amp,0.9,\freq, 40, \dura, 5, \metal, 1.01, \out:~reverbBus])
 
 
 ////////////////////// OLD code (yuk - del) ////////////////////////
@@ -292,7 +329,7 @@ x.stop
 ~rollingBassTest.free
 
 
-~bassTest = Synth.new(\bass,[\amp,0.8,\freq,50 /* 20 bass - 200 tom*/, \dur, 0.8])
+~bassTest = Synth.new(\bass,[\amp,0.8,\freq,50 /* 20 bass - 200 tom*/, \dura, 1])
 ~glockTest = Synth.new(\bass,[\amp,0.8,\freq,1200]) // mid freq is glock 400-1800, high is triangle 2k-20k
 ~snareTest = Synth.new(\snare,[\amp,0.8,\cut_freq,1000 /* 200-20000*/, \dur, 0.2 /* 0.05 - 1 */])
 ~hatTest = Synth.new(\hat,[\amp,0.8,\cut_freq,4000 /* 2000 heavy - 20000 lightest*/, \dur, 0.8 /* 0.05 closed - 1 open */])
