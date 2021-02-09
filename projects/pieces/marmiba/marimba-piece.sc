@@ -79,9 +79,12 @@ ServerQuit.removeAll;
 	//~bass = Dictionary.new;
 	//~bass.putPairs([\note , 30, \dura ,2] );
 	~config = (
-		bass:(note:30, dura:2)
+		bass:(note:30, dura:2),
+		chorus:(
+			rollbase:(amp:2, note:22),
+			twinkle:(amp:3, note:68)
+		)
 	);
-
 	e.add(\intro -> {
 		Routine({
 			~introSequence = Pbind(
@@ -135,21 +138,26 @@ ServerQuit.removeAll;
 
 	e.add(\chorus -> {
 		Routine({
-			~rollRiff0 = Pseq([22],inf);
+			~rollRiff0 = Pseq([22, 25, 27],inf);
 			~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24],inf);
 			~rollRiff2 = Pxrand((Scale.major.degrees+26),inf);
 			~rollRiff3 = Prand([30,28,32,34],inf);
 
 			~chorusSequence  = Ppar([
-				// use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
-				Pbind(\instrument,\bpfsaw,	\dur, 1, \amp, 2, \pre, 0.5,
-					\midinote, Prand([~rollRiff0, ~rollRiff1, ~rollRiff2, ~rollRiff03], inf),
-					\atk, 0.2, \sus, 0.278, \rel, 0.1,
+				// rollBase: use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
+				Pbind(\instrument,\bpfsaw,	\dur, 1,
+					\amp, Pfunc({~config[\chorus][\rollbase][\amp]}),
+					\midinote, ~rollRiff0,////Pdefn(\riff,~rollriff0)// Pfunc({~config[\chorus][\rollbase][\note]})
+					\pre, 0.5, \atk, 0.2, \sus, 0.278, \rel, 0.1,
 					\rqmin, 0.2, \rqmax, 0.3, \cfhzmin, 0, \cfhzmax, 0,
 					\cfmin, 25, \cfmax, 40,
 					\out, ~out
 				),
-				Pbind(\instrument, \bpfsaw, \dur, 0.5, \amp, 3, \freq, 400, \detune, 0,
+				// twinkle:
+				Pbind(\instrument, \bpfsaw, \dur, 0.5,
+					\amp, Pfunc({~config[\chorus][\twinkle][\amp]}),
+					\midinote, Pfunc({~config[\chorus][\twinkle][\note]}),
+					\detune, 0,
 					\atk, 0,\rel, 1,
 					\rqmin, 0.0005, \rqmax, 0.008,
 					\cfmin, 200, \cfmax, 1000,
@@ -160,8 +168,8 @@ ServerQuit.removeAll;
 			~chorusPercussion  = Ppar([
 				Pbind(\instrument, \bass, \dur, 1,
 					\amp, 0.8,
-					\midinote, Pfunc({~config[\bass][\note] ?? 32}),
-					\dura, Pfunc({~config[\bass][\dura] ?? 2}),
+					\midinote, Pfunc({~config[\bass][\note]}),
+					\dura, Pfunc({~config[\bass][\dura]}),
 					\metal, 1.1,
 					\group, ~mainGrp, \out, ~reverbBus),
 				Pbind(\instrument, \hat,  \dur, 1,
@@ -299,19 +307,20 @@ s.waitForBoot({
 });
 )
 /////////////// test ///////////////////////////////
-~tempoClock.tempo = 120/60;
+~tempoClock.tempo = 122/60;
 e[\intro].()
 e[\introStop].()
 e[\chorus].()
 e[\chorusStop].()
 
+~reverbSynth.set(\mix, 0.3, \room, 1, \damp, 1)
+~config[\bass].putPairs([\note, [28,30,32,34,35].choose, \dura, 2]);
+~config[\chorus][\rollbase].putPairs([\note, 22, \amp, 3]);
+~config[\chorus][\twinkle].putPairs([\note, 40, \amp, 5]);
+
 x = ~introPercussion.play
 x.stop
-~reverbSynth.set(\mix, 0.3, \room, 1, \damp, 1)
-~config[\bass][\note].postln
-~config[\bass].putPairs([\note, [30,32,34,35].choose, \dura, 2]);
 ~bassTest = Synth.new(\bass,[\amp,0.9,\freq, 40, \dura, 5, \metal, 1.01, \out:~reverbBus])
-
 
 ////////////////////// OLD code (yuk - del) ////////////////////////
 ////////////////////// test synths ////////////////////////
