@@ -70,7 +70,7 @@ MIDIClient.init;
 MIDIClient.sources;
 MIDIIn.connect(2, MIDIClient.sources.at(2));  // MIDIEndPoint("USB Oxygen 8 v2", "USB Oxygen 8 v2")
 ~map1= [71, 74, 84, 7,  91, 93, 5,  10];
-~map2= [106,107,108,109,102,103,104,105];
+~map2= [106,107,108,109,102,103,104,105]; // P10 == best
 ~map = ~map2;
 MIDIdef.cc(\ccTheremin,{|val, ctnum, chan|
 	["\ccTheremin", val, ctnum, chan].postln;
