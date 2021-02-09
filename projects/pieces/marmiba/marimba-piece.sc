@@ -73,24 +73,39 @@ ServerQuit.removeAll;
 ~tempoClock = TempoClock.default;
 ~tempoClock.tempo = 120/60; //120 bpm 4/4
 ~makeEvents = {
-	// MIDIIn.connectAll;
+	var indexOfOxy;
+	MIDIClient.init;
+	indexOfOxy = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("Oxygen 8")});
+	MIDIIn.connect(indexOfOxy, MIDIClient.sources[indexOfOxy]);
+	~oxyKnobMap1= [71, 74, 84, 7,  91, 93, 5,  10];
+	~oxyKnobMap2= [106,107,108,109,102,103,104,105];
+
 	e = Dictionary.new;
 
-	//~bass = Dictionary.new;
-	//~bass.putPairs([\note , 30, \dura ,2] );
+	~chorusRollRiff0 = Pseq([22, 22, 24, 22],inf);
+	~chorusRollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24],inf);
+	~chorusRollRiff2 = Pxrand((Scale.major.degrees+26),inf);
+	~chorusRollRiff3 = Prand([30,28,32,34],inf);
+	~chorusRollRiffFunc = Pfunc({~config[\chorus][\rollbase][\note]});
+
 	~config = (
-		bass:(note:30, dura:2),
+		bass:(note:30, dura:2, amp:0.8),
+		snare:(note:30, dura:2, amp:0.4),
+		hat:(note:110, dura:0.2, amp:0.0),
+		tri:(note:123, dura:2, amp:0.0),
 		chorus:(
-			rollbase:(amp:2, note:22),
+			rollbase:(amp:2, note:22, riff:~chorusRollRiffFunc),
 			twinkle:(amp:3, note:68)
-		)
+		),
+		midi:(map:~oxyKnobMap2)
 	);
+
 	e.add(\intro -> {
 		Routine({
 			~introSequence = Pbind(
 				\instrument,\bpfsaw,
-				\dur, 1,//Pexprand(0.1,1,inf),
-				\freq, 4,//Pexprand(8,9,inf),
+				\dur, 1, //Pexprand(0.1,1,inf),
+				\freq, 4, //Pexprand(8,9,inf),
 				\detune, 0,
 				\rqmin, 0.005, \rqmaz, 0.008,
 				\cfmin, Pseq([100, 200, 300, 400], inf), \cfmax, Pkey(\cfmin),
@@ -101,24 +116,24 @@ ServerQuit.removeAll;
 			~introPercussion = Ppar([
 				Pbind(\instrument, \bass,
 					\dur, 2,
-					\amp, 0.8,
-					\midinote, Pfunc({~config[\bass][\note] ?? 32}),
-					\dura, Pfunc({~config[\bass][\dura] ?? 2}),
+					\amp, Pfunc({~config[\bass][\amp]}),
+					\midinote, Pfunc({~config[\bass][\note]}),
+					\dura, Pfunc({~config[\bass][\dura]}),
 					\metal, 1.01,
 					\group, ~mainGrp, \out, ~reverbBus),
 				//Pbind(\instrument, \snare,\amp, 0.8, \cut_freq, 4000, \dur, 4,  \dura, 0.2),
 				Pbind(\instrument, \hat,
 					\dur, 0.5,
-					\amp, 0.4,
-					\cut_freq, 5000,
-					\dura, 0.2,
+					\amp, Pfunc({~config[\hat][\amp]}),
+					\midinote, Pfunc({~config[\hat][\note]}),
+					\dura,  Pfunc({~config[\hat][\dura]}),
 					\group, ~mainGrp, \out, ~reverbBus),
 				/*triangle*/
 				Pbind(\instrument, \bass,
 					\dur, 8,
-					\amp, 0.04,
-					\freq, 10000,
-					\dura, 2,
+					\amp, Pfunc({~config[\tri][\amp]}),
+					\midinote, Pfunc({~config[\tri][\note]}),
+					\dura,  Pfunc({~config[\tri][\dura]}),
 					\group, ~mainGrp, \out, ~reverbBus)
 			]);
 
@@ -138,16 +153,11 @@ ServerQuit.removeAll;
 
 	e.add(\chorus -> {
 		Routine({
-			~rollRiff0 = Pseq([22, 25, 27],inf);
-			~rollRiff1 = Pseq([22,22,22,22,24,24,24,24,28,28,22,22,24,24,24,24],inf);
-			~rollRiff2 = Pxrand((Scale.major.degrees+26),inf);
-			~rollRiff3 = Prand([30,28,32,34],inf);
-
 			~chorusSequence  = Ppar([
 				// rollBase: use bpfsaw for rolling bass w. sloping reverse envelopes and var blowshelf
 				Pbind(\instrument,\bpfsaw,	\dur, 1,
 					\amp, Pfunc({~config[\chorus][\rollbase][\amp]}),
-					\midinote, ~rollRiff0,////Pdefn(\riff,~rollriff0)// Pfunc({~config[\chorus][\rollbase][\note]})
+					\midinote, ~config[\chorus][\rollbase][\riff],////Pdefn(\riff,~rollriff0)
 					\pre, 0.5, \atk, 0.2, \sus, 0.278, \rel, 0.1,
 					\rqmin, 0.2, \rqmax, 0.3, \cfhzmin, 0, \cfhzmax, 0,
 					\cfmin, 25, \cfmax, 40,
@@ -167,21 +177,21 @@ ServerQuit.removeAll;
 
 			~chorusPercussion  = Ppar([
 				Pbind(\instrument, \bass, \dur, 1,
-					\amp, 0.8,
+					\amp, Pfunc({~config[\bass][\amp]}),
 					\midinote, Pfunc({~config[\bass][\note]}),
 					\dura, Pfunc({~config[\bass][\dura]}),
 					\metal, 1.1,
 					\group, ~mainGrp, \out, ~reverbBus),
 				Pbind(\instrument, \hat,  \dur, 1,
-					\amp, 0.4,
-					\cut_freq, 5000,
-					\dura, 0.2,
+					\amp, Pfunc({~config[\hat][\amp]}),
+					\midinote, Pfunc({~config[\hat][\note]}),
+					\dura,  Pfunc({~config[\hat][\dura]}),
 					\group, ~mainGrp, \out, ~reverbBus),
 				/*triangle*/
 				Pbind(\instrument, \bass,  \dur, 0.5,
-					\amp, 0.04,
-					\freq, Prand((Scale.major.degrees+108).midicps,inf),
-					\dura, 0.5,
+					\amp, Pfunc({~config[\tri][\amp]}),
+					\midinote, Pfunc({~config[\tri][\note]}),
+					\dura,  Pfunc({~config[\tri][\dura]}),
 					\group, ~mainGrp, \out, ~reverbBus),
 			]);
 
@@ -199,6 +209,55 @@ ServerQuit.removeAll;
 	e.add(\chorusStop -> {
 		~chorus.stop;
 	});
+
+	MIDIdef.cc(\controller, {|val, ctnum, chan|
+		var map;
+		map = ~config[\midi][\map];
+		//["controller", val, ctnum, chan].postln;
+		switch (ctnum)
+		{map[0]} { // topleft knob:
+			~config[\chorus][\twinkle][\amp] = val.linlin(0,127,0,3);
+		}
+		{map[1] } { // 2nd top left knob:
+			~config[\chorus][\rollbase][\amp] = val.linlin(0,127,0,3);
+		}
+		{map[2]} { //2nd top right knob:
+			~config[\bass][\amp] = val.linlin(0,127,0,1);
+		}
+		{map[3] } { // top right knob:
+			~config[\snare][\amp] = val.linlin(0,127,0,1);
+		}
+		{map[4] } { //  bottom left:
+			~config[\hat][\amp] = val.linlin(0,127,0,1);
+		}
+		{map[5] } { //  bottom 2nd left:
+			~config[\tri][\amp] = val.linlin(0,127,0,0.5);
+		}
+		{map[6]} { // bottom 2nd right:
+
+		}
+		{map[7] } { // bottom right:
+
+		}
+		{"unmapped:"+chan +":"+ ctnum + " -> "+val}.postln
+		;
+	});
+
+	MIDIdef.noteOn(\noteOn,{|vel, nn, chan, s|
+		["noteOn", vel, nn, chan, s].postln;
+		~config[\chorus][\rollbase][\note] = nn
+	});
+
+	MIDIdef.noteOff(\noteOff,{|vel, nn, chan, s|
+		["noteOff", vel, nn, chan, s].postln;
+
+	});
+
+	MIDIdef.bend(\bend,{|vel, nn, chan, s|
+		["bend", vel, nn, chan, s].postln;
+
+	});
+
 };
 
 //4. register functions with ServerBoot/Quit/Tree
@@ -264,11 +323,11 @@ s.waitForBoot({
 		Synthetic hi-hat
 		---------------------- */
 		SynthDef(\hat, {
-			arg amp = 0.5, cut_freq = 6000, dura = 0.25, out = 0;
+			arg amp = 0.5, freq = 6000, dura = 0.25, out = 0;
 
 			var amp_env,sig  ;
 			amp_env = EnvGen.ar(Env.perc(1e-7, dura), doneAction:2);
-			sig = HPF.ar( {WhiteNoise.ar}.dup * amp_env, cut_freq ) * amp / 4;
+			sig = HPF.ar( {WhiteNoise.ar}.dup * amp_env, freq ) * amp / 4;
 
 			Out.ar(out, sig);
 		}).add;
@@ -315,12 +374,15 @@ e[\chorusStop].()
 
 ~reverbSynth.set(\mix, 0.3, \room, 1, \damp, 1)
 ~config[\bass].putPairs([\note, [28,30,32,34,35].choose, \dura, 2]);
-~config[\chorus][\rollbase].putPairs([\note, 22, \amp, 3]);
+~config[\chorus][\rollbase].putPairs([\riff,~chorusRollRiffFunc, \note, 28, \amp, 3]);
 ~config[\chorus][\twinkle].putPairs([\note, 40, \amp, 5]);
+~config[\chorus][\rollbase][\riff]=~chorusRollRiff0;
+~config[\chorus][\rollbase][\riff]=~chorusRollRiff1;
 
 x = ~introPercussion.play
 x.stop
 ~bassTest = Synth.new(\bass,[\amp,0.9,\freq, 40, \dura, 5, \metal, 1.01, \out:~reverbBus])
+s.meter;
 
 ////////////////////// OLD code (yuk - del) ////////////////////////
 ////////////////////// test synths ////////////////////////
