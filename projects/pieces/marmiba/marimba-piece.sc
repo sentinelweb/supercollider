@@ -7,9 +7,10 @@
 // - make more sequences for chorus (make an event to change it)
 // - more song phases
 // + put reverb on precussion
-// - MIDI control
+// + MIDI control
 // - when intro tempo isnt 120 there are artifacts (some delay somewhere?)
 // - look at levels and EQ to pop more
+// - add more percussion rhythms and tweak
 // - find wood wind sound (drone)
 ///////////////////////////////////////////////////////////////////////////////////////
 //1. server config ////////////////////////////////////////////////////////////////////
@@ -78,7 +79,7 @@ ServerQuit.removeAll;
 	indexOfOxy = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("Oxygen 8")});
 	MIDIIn.connect(indexOfOxy, MIDIClient.sources[indexOfOxy]);
 	~oxyKnobMap1= [71, 74, 84, 7,  91, 93, 5,  10];
-	~oxyKnobMap2= [106,107,108,109,102,103,104,105];
+	~oxyKnobMap2= [106,107,108,109,102,103,104,105]; // P10 == best
 
 	e = Dictionary.new;
 
@@ -309,11 +310,11 @@ s.waitForBoot({
 		Synthetic snare
 		---------------------- */
 		SynthDef(\snare, {
-			arg amp = 0.5, cut_freq = 3000, dura = 0.25, out = 0;
+			arg amp = 0.5, freq = 3000, dura = 0.25, out = 0;
 			var amp_env, sig;
 
 			amp_env = EnvGen.ar(Env.perc(1e-6, dura), doneAction:2);
-			sig = LPF.ar( {WhiteNoise.ar(WhiteNoise.ar)}.dup * amp_env, cut_freq ) * amp;
+			sig = LPF.ar( {WhiteNoise.ar(WhiteNoise.ar)}.dup * amp_env, freq ) * amp;
 
 			Out.ar(out, sig);
 		}).add;
@@ -376,8 +377,10 @@ e[\chorusStop].()
 ~config[\bass].putPairs([\note, [28,30,32,34,35].choose, \dura, 2]);
 ~config[\chorus][\rollbase].putPairs([\riff,~chorusRollRiffFunc, \note, 28, \amp, 3]);
 ~config[\chorus][\twinkle].putPairs([\note, 40, \amp, 5]);
-~config[\chorus][\rollbase][\riff]=~chorusRollRiff0;
-~config[\chorus][\rollbase][\riff]=~chorusRollRiff1;
+~config[\chorus][\rollbase][\riff] = ~chorusRollRiff0;
+~config[\chorus][\rollbase][\riff] = ~chorusRollRiff1;
+~config[\tri][\note] = {(Scale.major.degrees[7.rand]+108)}.value() // todo retrigger somehow
+~config[\tri][\dura] = 1
 
 x = ~introPercussion.play
 x.stop
