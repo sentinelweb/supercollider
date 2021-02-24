@@ -13,6 +13,8 @@ s.newBusAllocators;
 ServerBoot.removeAll;
 ServerTree.removeAll;
 ServerQuit.removeAll;
+~tempoClock = TempoClock.default;
+~tempoClock.tempo = 125/60;
 ~reverbBus = Bus.audio(s,2);
 ~reverbTomBus = Bus.audio(s,2);
 ~makeNodes = {
@@ -94,7 +96,7 @@ SynthDef(\reverb, {
 (
 SynthDef('clap', {
     arg dura = 1,hit=50,freq=3000,wid=2000;
-    var claposc, clapnoise, clapoutput, clap_env, hitosc, hit_env;
+    var claposc, clapnoise, clapoutput, clap_env, hit_osc, hit_env;
 
     clap_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
 	clapnoise = {BPF.ar(LPF.ar(WhiteNoise.ar(1),(freq+wid)),(freq-wid))};
@@ -111,10 +113,10 @@ SynthDef('clap', {
     )};
 
 	hit_env   = EnvGen.ar(Env.perc(1e-6,dura*0.005), doneAction:0);
-    hitosc = SinOsc.ar(hit.midicps,mul:1);
+	hit_osc = BPF.ar(WhiteNoise.ar(1), freq: hit.midicps, rq:0.1, mul:1);
 
     Out.ar(0,
-		Pan2.ar((clapoutput * clap_env)+ (hitosc* hit_env), 0)
+		Pan2.ar((clapoutput * clap_env)+ (hit_osc* hit_env), 0)
     )
 
 }).add;
@@ -182,7 +184,6 @@ SynthDef(\arp, {
 ~techno.stop;
 // sequence
 (
-~tempoClock = TempoClock.default;
 ~tempoClock.tempo = 125/60;
 ~reverbSynth.set(\mix, 0.5, \room, 1, \damp, 1);
 ~reverbTomSynth.set(\mix, 0.8, \room, 0.3, \damp, 1);
