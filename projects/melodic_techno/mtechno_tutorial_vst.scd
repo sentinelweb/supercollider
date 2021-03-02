@@ -16,8 +16,10 @@ ServerQuit.removeAll;
 ~tempoClock = TempoClock.default;
 ~tempoClock.tempo = 125/60;
 ~makeBusses = {
+	s.newBusAllocators;
 	~reverbBus = Bus.audio(s,2);
 	~reverbTomBus = Bus.audio(s,2);
+	("MadeBus:"++~reverbBus).postln;
 };
 ~path = PathName(thisProcess.nowExecutingPath).parentPath++"data/";
 ~makeNodes = {
@@ -26,14 +28,20 @@ ServerQuit.removeAll;
 		~reverbGrp = Group.after(~mainGrp);
 	});
 };
+
+ServerTree.add(~makeNodes);
+ServerTree.add(~makeBusses);
 ~cleanup = {
 	s.newBusAllocators;
 	ServerBoot.removeAll;
 	ServerTree.removeAll;
 	ServerQuit.removeAll;
+	"cleanup".postln;
 };
 
 ServerQuit.add(~cleanup);
+)
+(
 s.waitForBoot({
 	/* ----------------------
 	Synthetic bass drum
@@ -125,19 +133,19 @@ s.waitForBoot({
 
 	}).add;
 
-	SynthDef(\serumeq, { arg bus;
-		var sig;
+	SynthDef(\serumeq, { arg bus, sideChain, amp=1;
+		var sig, sideChainSig;
+		sig = In.ar(bus, 2);
 		sig = VSTPlugin.ar(sig, 2, id: \serum);
-		sig = VSTPlugin.ar(sig, 2, id: \eq);
-		Out.ar(bus, sig);
+		sideChainSig = InFeedback.ar(sideChain, 2);// take input from last block as reverbGroup is out of order
+		sideChainSig.scope("SideChain input");
+		sig = VSTPlugin.ar(sig, 2, id: \eq, auxInput: sideChainSig);//, auxInput: sideChainSig
+		Out.ar(bus, sig*amp);
 	}).add;
 
 	s.sync;
 	VSTPlugin.search(verbose:true);
-	s.sync;
 
-	ServerTree.add(~makeBusses);
-	ServerTree.add(~makeNodes);
 	s.sync;
 	~config = ();
 
@@ -156,12 +164,15 @@ s.waitForBoot({
 		~config[key][\eq].readProgram(~path++key++"_eq.fxp");
 	};
 
-	~config[\drivingBase] = ();
-	~config[\drivingBase][\synth] = Synth(\serumeq, [\bus, 0]);
-	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
-	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);
+	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~out ], ~reverbGrp );
+	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~out ], ~reverbGrp );
 
-	~config[\pad] = ();
+	~config[\drivingBase] = ();
+	~config[\drivingBase][\synth] = Synth(\serumeq, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
+
+	/*~config[\pad] = ();
 	~config[\pad][\synth] = Synth(\serumeq, [\bus, 0]);
 	~config[\pad][\serum] = VSTPluginController(~config[\pad][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\pad][\eq] = VSTPluginController(~config[\pad][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);
@@ -169,33 +180,31 @@ s.waitForBoot({
 	~config[\arp] = ();
 	~config[\arp][\synth] = Synth(\serumeq, [\bus, 0]);
 	~config[\arp][\serum] = VSTPluginController(~config[\arp][\synth],\serum).open("Serum", verbose: true,  editor:true);
-	~config[\arp][\eq] = VSTPluginController(~config[\arp][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);
+	~config[\arp][\eq] = VSTPluginController(~config[\arp][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);*/
 
-	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~out ], ~reverbGrp );
-	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~out ], ~reverbGrp );
 
 	s.sync;
 
 	~load.(\drivingBase);
-	~load.(\pad);
-	~load.(\arp);
+	/*~load.(\pad);
+	~load.(\arp);*/
 });
 )
-
+s.plotTree;
 ~techno.play;
 ~techno.stop;
-
+~reverbBus.scope;
 ~openEditors.(\drivingBase);
 ~save.(\drivingBase);
 ~load.(\drivingBase);
 
-~openEditors.(\pad);
+/*~openEditors.(\pad);
 ~save.(\pad);
 ~load.(\pad);
 
 ~openEditors.(\arp);
 ~save.(\arp);
-~load.(\arp);
+~load.(\arp);*/
 // sequence
 (
 ~tempoClock.tempo = 125/60;
@@ -226,25 +235,27 @@ s.waitForBoot({
 		\vst, ~config[\drivingBase][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
 		\chan, 0,
-		\dur, 1/4, \amp, 0.4,
+		\dur, 1/4,
 		\midinote, Pseq([~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote+2], inf),
 	),
+	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 0.8)
 ]);
-
+/*
 // pads mid range (100-250) (44-60 midi)
 // https://www.youtube.com/watch?v=-rI14gsFQ1k
 ~padBaseNote = ~baseBaseNote+24;//53 - f3
 ~padAmp = 0.04;
 ~padSpread = 3;
-~padSeq =
+~padSeq = Ppar([
 	Pbind(\type, \vst_midi,
 		\vst, ~config[\pad][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
-	 \dur, inf,
-	\amp, ~padAmp,
-	\chan, 0,
-	\midinote, [~padBaseNote,~padBaseNote+3,~padBaseNote+7]
-);
+		\dur, 4,
+		\chan, 0,
+		\midinote, [~padBaseNote, ~padBaseNote+3, ~padBaseNote+7]
+	),
+	Pbind(\type, \set, \id, ~config[\pad][\synth], \amp, ~padAmp)
+]);
 
 // https://www.youtube.com/watch?v=7xJiHbOm8-E
 ~arpBaseNote = ~baseBaseNote+36; // 65- f4
@@ -254,17 +265,19 @@ s.waitForBoot({
 		\vst, ~config[\arp][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
 		\dur, 1/4,
-		\amp, 0.6,
 		\chan, 0,
 		\midinote, Pseq([1,7,8] + ~arpBaseNote, inf)
-	)
+	),
+	Pbind(\type, \set, \id, ~config[\arp][\synth], \amp, 0.4)
 ]);
-
-~techno  = Pdef(\perc, Ppar([ ~percussionSeq, ~baseSeq, ~padSeq, ~melodySeq])).quant = [~tempoClock.beatsPerBar];
+*/
+~techno  = Pdef(\perc,
+	Ppar([ ~percussionSeq, ~baseSeq/*, ~padSeq, ~melodySeq*/])
+).quant = [~tempoClock.beatsPerBar];
 )
 
 
-s.plotTree
+
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura,0.25]);
 ~kick = Synth.new(\kick,[\freq,20,\dura,0.5, \metal,2]);
 ~kick = Synth.new(\kick,[\freq,40.midicps,\dura,0.5, \metal,2]);
