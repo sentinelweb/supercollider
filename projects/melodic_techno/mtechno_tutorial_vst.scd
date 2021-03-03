@@ -201,7 +201,6 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 s.plotTree;
 ~techno.play;
 ~techno.stop;
-~reverbBus.scope;
 
 ~openEditors.(\drivingBase);
 ~save.(\drivingBase);
@@ -244,9 +243,9 @@ s.plotTree;
 		\midicmd, \noteOn,
 		\chan, 0,
 		\dur, 1/4,
-		\midinote, Pseq([~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote+2], inf),
+		\midinote, Pseq([~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote+7, ~baseBaseNote+12, ~baseBaseNote+12, ~baseBaseNote+12], inf),
 	),
-	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 0.8)
+	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 1)
 ]);
 /*
 // pads mid range (100-250) (44-60 midi)
