@@ -42,19 +42,27 @@ ServerTree.add(~makeBusses);
 ServerQuit.add(~cleanup);
 )
 (
-s.waitForBoot({
+s.waitForBoot({// todo try making this whole thing a function and adding to ServerTree
 	/* ----------------------
 	Synthetic bass drum
 	---------------------- */
 	SynthDef(\kick, {
 		arg amp = 0.5, dura = 0.25, freq = 50, metal = 1.1, out = 0 ;
-		var amp_env, phase_env, phase, sig;
+		var amp_env, freq_env, phase_env, phase, sig, mid_sig, sub_env, sub_sig, hit_env, hit_sig;
 
-		amp_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
-		phase_env = EnvGen.ar(Env.perc(1e-6,0.125));
+		amp_env   = EnvGen.ar(Env.perc(1e-6, dura), doneAction:2) * amp;
+		freq_env  = EnvGen.ar(Env.new([1, 0.5, 0.5],[0.5, 1]*dura), doneAction:2) * freq;
+		phase_env = EnvGen.ar(Env.perc(1e-6, 0.125));
+		phase = SinOsc.ar(20, 0, pi) * phase_env;
+		mid_sig = SinOsc.ar([freq_env, metal*freq_env], phase) * amp_env;
 
-		phase = SinOsc.ar(20,0,pi) * phase_env;
-		sig = SinOsc.ar([freq, metal*freq], phase) * amp_env * amp;
+		sub_env = EnvGen.ar(Env.new([0, 1, 1, 0]*amp, [0.4, 0.2] * dura, curve:\sine), doneAction:0);
+		sub_sig = SinOsc.ar(freq) * sub_env;
+
+		hit_env = EnvGen.ar(Env.new([0,1,0.5,0]*2*amp,[1e-4, 0.01,0.03]*dura, curve:-1), doneAction:0);
+		hit_sig = (SinOsc.ar(freq*2)+BPF.ar(WhiteNoise.ar(10), freq: freq, rq: 0.5)) * hit_env;
+
+		sig = sub_sig + mid_sig + hit_sig;
 
 		Out.ar(out, sig);
 	}).add;
@@ -124,7 +132,7 @@ s.waitForBoot({
 			}
 		)};
 
-		hit_env   = EnvGen.ar(Env.perc(1e-6,dura*0.005), doneAction:0);
+		hit_env   = EnvGen.ar(Env.perc(1e-6, dura*0.005), doneAction:0);
 		hit_osc = BPF.ar(WhiteNoise.ar(1), freq: hit.midicps, rq:0.1, mul:1);
 
 		Out.ar(0,
@@ -194,6 +202,7 @@ s.plotTree;
 ~techno.play;
 ~techno.stop;
 ~reverbBus.scope;
+
 ~openEditors.(\drivingBase);
 ~save.(\drivingBase);
 ~load.(\drivingBase);
@@ -208,16 +217,15 @@ s.plotTree;
 // sequence
 (
 ~tempoClock.tempo = 125/60;
-~reverbSynth.set(\mix, 0.5, \room, 1, \damp, 1);
-~reverbTomSynth.set(\mix, 0.8, \room, 0.3, \damp, 1);
+~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
+~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
 //https://www.youtube.com/watch?v=XCTQZRXW6Cg
 ~percussionSeq = Ppar([
 	// kick
-	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1,\midinote, 10,	\dura, 0.5,	\metal, 3,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, 28,	\dura, 0.5,	\metal, 1.3,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
-
-	Pbind(\instrument, \kick, \amp, 1, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf),\midinote, Pseq([0,35,40,0],inf),	\dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1, 1]/4,inf),\hit, 40,\midinote, 116, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf),\midinote, Pseq([0,35,40,0],inf),	\dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
+	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1, 1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
 	Pbind(\instrument, \hat,  \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12),
 	/*triangle*/
 	// Pbind(\instrument, \kick,  \dur, 8,\amp, 0.15, \midinote, Pseq([100, 103,104,102, 110],inf),\dura, 4),
@@ -276,11 +284,9 @@ s.plotTree;
 ).quant = [~tempoClock.beatsPerBar];
 )
 
-
-
-~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura,0.25]);
-~kick = Synth.new(\kick,[\freq,20,\dura,0.5, \metal,2]);
-~kick = Synth.new(\kick,[\freq,40.midicps,\dura,0.5, \metal,2]);
+~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);
+~kick = Synth.new(\kick,[\freq, 20, \dura, 0.5, \metal, 2]);
+~kick = Synth.new(\kick,[\freq, 28.midicps, \dura, 0.5, \metal, 1.3, \amp, 0.5]);
 ~glock = Synth.new(\kick,[\amp,0.8,\freq,70.midicps, \metal:1])
 ~snare = Synth.new(\snare,[\amp,0.8,\freq, 1000 /* 200-20000*/, \dur, 0.2 /* 0.05 - 1 */])
 ~hatTest = Synth.new(\hat,[\amp,0.8,\freq,100.midicps /* 2000 heavy - 20000 lightest*/, \dur, 0.8 /* 0.05 closed - 1 open */])
@@ -288,7 +294,24 @@ s.plotTree;
 ~clap = Synth(\clap, [\hit,40, \freq,4000,\wid,2000, \dura,2]);
 ~base = Synth(\base,[\freq, 25.midicps, \amp,5, \clip,0.25]);
 
-
+(
+{
+	var hit_env, hit_sig, sub_env, sub_sig,freq = 25.midicps, dura = 1;
+	freq.postln;
+	sub_env = EnvGen.ar(Env.new([0, 1, 1, 0], [0.4, 0.6] * dura, curve:\sine), doneAction:2);
+	sub_sig = SinOsc.ar(freq) * sub_env;
+	hit_env = EnvGen.ar(Env.new([0,1,0.5,0]*3,[1e-3, 0.01*dura,0.03*dura], curve:-1), doneAction:0);
+	hit_sig = (SinOsc.ar(freq * 4) + BPF.ar(WhiteNoise.ar(10), freq: freq, rq: 0.5)) * hit_env;
+	sub_sig;
+}.play;
+)
+30.midicps.postln;
+Env.perc(1e-6, dura * 0.5).plot
 Env.perc(1e-6,1).plot
 
-Env.new([0,1,1,0],[0.05,0.95], curve:\sine).plot;
+Env.sine(1, 1).test.plot;
+
+Env.adsr(1e-3, 0.02, 0.5, 0.1, curve:0).plot
+
+Env.new([0,1,1,0],[0.4,0.6], curve:\sine).plot;
+Env.new([0, 1, 1, 0]*2, [0.4, 0.2] * 1.5, curve:\sine).plot;
