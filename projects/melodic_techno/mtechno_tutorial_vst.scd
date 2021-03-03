@@ -141,20 +141,6 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 
 	}).add;
 
-	SynthDef(\serumeq, { arg bus, sideChain, amp=1;
-		var sig, sideChainSig;
-		sig = In.ar(bus, 2);
-		sig = VSTPlugin.ar(sig, 2, id: \serum);
-		sideChainSig = InFeedback.ar(sideChain, 2);// take input from last block as reverbGroup is out of order
-		sideChainSig.scope("SideChain input");
-		sig = VSTPlugin.ar(sig, 2, id: \eq, auxInput: sideChainSig);//, auxInput: sideChainSig
-		Out.ar(bus, sig*amp);
-	}).add;
-
-	s.sync;
-	VSTPlugin.search(verbose:true);
-
-	s.sync;
 	~config = ();
 
 	~openEditors = {arg key;
@@ -172,13 +158,75 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		~config[key][\eq].readProgram(~path++key++"_eq.fxp");
 	};
 
+	//pad
+	~config[\pad] = ();
+	~config[\pad][\bufSignal] = Buffer.alloc(s, 2048);
+	~config[\pad][\bufShaper] = Buffer.alloc(s, 2048);
+	~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
+	~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [25,-25]).asSignal(1025).asWavetableNoWrap);
+
+	SynthDef(\pad, { arg bus, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
+		var sig,freqs;
+		freqs = 24+
+	sig = BPF.ar(
+		Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
+		freq: freqs[0] + SinOsc.kr(lfo_freq, mul:lfo_wid),
+		rq:rq
+	);
+	Out.ar(bus, sig*amp!2);
+}).add;
+
+	// driving base
+	SynthDef(\drivingBase, { arg bus, sideChain, amp=1;
+		var sig, sideChainSig;
+		sig = In.ar(bus, 2);
+		sig = VSTPlugin.ar(sig, 2, id: \serum);
+		sideChainSig = InFeedback.ar(sideChain, 2);// take input from last block as reverbGroup is out of order
+		//sideChainSig.scope("SideChain input");
+		sig = VSTPlugin.ar(sig, 2, id: \eq, auxInput: sideChainSig);//, auxInput: sideChainSig
+		Out.ar(bus, sig*amp);
+	}).add;
+
+	s.sync;
+	VSTPlugin.search(verbose:true);
+
+	s.sync;
+
 	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~out ], ~reverbGrp );
 	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~out ], ~reverbGrp );
 
 	~config[\drivingBase] = ();
-	~config[\drivingBase][\synth] = Synth(\serumeq, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\drivingBase][\synth] = Synth(\drivingBase, [\bus, 0, \sideChain, ~reverbBus]);
 	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
+
+	// lead
+	SynthDef(\lead, { arg bus, amp=1;
+		var sig;
+		sig = In.ar(bus, 2);
+		sig = VSTPlugin.ar(sig, 2, id: \serum);
+		sig = VSTPlugin.ar(sig, 2, id: \eq);
+		Out.ar(bus, sig*amp);
+	}).add;
+
+	~config[\lead] = ();
+	~config[\lead][\synth] = Synth(\lead, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\lead][\serum] = VSTPluginController(~config[\lead][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\lead][\eq] = VSTPluginController(~config[\lead][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
+
+	// leadMono
+	SynthDef(\leadMono, { arg bus, amp=1;
+		var sig;
+		sig = In.ar(bus, 2);
+		sig = VSTPlugin.ar(sig, 2, id: \serum);
+		sig = VSTPlugin.ar(sig, 2, id: \eq);
+		Out.ar(bus, sig*amp);
+	}).add;
+
+	~config[\leadMono] = ();
+	~config[\leadMono][\synth] = Synth(\leadMono, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\leadMono][\serum] = VSTPluginController(~config[\leadMono][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\leadMono][\eq] = VSTPluginController(~config[\leadMono][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
 	/*~config[\pad] = ();
 	~config[\pad][\synth] = Synth(\serumeq, [\bus, 0]);
@@ -190,12 +238,12 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~config[\arp][\serum] = VSTPluginController(~config[\arp][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\arp][\eq] = VSTPluginController(~config[\arp][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);*/
 
-
 	s.sync;
 
 	~load.(\drivingBase);
-	/*~load.(\pad);
-	~load.(\arp);*/
+	~load.(\lead);
+	~load.(\leadMono);
+	/*~load.(\arp);*/
 });
 )
 s.plotTree;
@@ -204,24 +252,27 @@ s.plotTree;
 
 ~openEditors.(\drivingBase);
 ~save.(\drivingBase);
-~load.(\drivingBase);
 
-/*~openEditors.(\pad);
-~save.(\pad);
-~load.(\pad);
+~openEditors.(\lead);
+~save.(\lead);
 
-~openEditors.(\arp);
-~save.(\arp);
-~load.(\arp);*/
+~openEditors.(\leadMono);
+~save.(\leadMono);
+
+FreqScope.new(400, 200, busNum:0, server: s);
+
+~config[\pad][\bufSignal].sine3([1,3,5], [0.5, 0.25, 0.75], normalise:true, asWavetable:true);
+~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
+~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [50,-50]).asSignal(1025).asWavetableNoWrap);
 // sequence
 (
-~tempoClock.tempo = 125/60;
+~tempoClock.tempo = 123/60;
 ~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
 ~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
 //https://www.youtube.com/watch?v=XCTQZRXW6Cg
 ~percussionSeq = Ppar([
 	// kick
-	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, 28,	\dura, 0.5,	\metal, 1.3,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, 29,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf),\midinote, Pseq([0,35,40,0],inf),	\dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
 	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1, 1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
@@ -247,6 +298,36 @@ s.plotTree;
 	),
 	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 1)
 ]);
+~leadBaseNote = ~baseBaseNote + 24; // 65- f4
+~leadSeq =  Ppar([
+	Pbind(\type, \vst_midi,
+		\vst, ~config[\lead][\serum], // the VSTPluginController instance
+		\midicmd, \noteOn,
+		\dur, 1/4,
+		\chan, 0,
+		\midinote, Pseq([1,7,8] + ~leadBaseNote, inf)
+	),
+	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, 0.0)
+]);
+
+~leadMonoBaseNote = ~baseBaseNote + 24; // 65- f4
+~leadMonoSeq =  Ppar([
+	Pbind(\type, \vst_midi,
+		\vst, ~config[\leadMono][\serum], // the VSTPluginController instance
+		\midicmd, \noteOn,
+		\dur, Pseq([1,1,2]*4,inf),
+		\chan, 0,
+		\midinote, Pseq([8,4,1] + ~leadMonoBaseNote, inf)
+	),
+	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, 0.0)
+]);
+~padBaseNote = ~baseBaseNote+36;
+~padSeq =
+	Pmono( \pad,
+		\dur, 4,
+		\amp, 1,
+		\midinote, [~padBaseNote, ~padBaseNote+5, ~padBaseNote+7]
+	);
 /*
 // pads mid range (100-250) (44-60 midi)
 // https://www.youtube.com/watch?v=-rI14gsFQ1k
@@ -263,48 +344,50 @@ s.plotTree;
 	),
 	Pbind(\type, \set, \id, ~config[\pad][\synth], \amp, ~padAmp)
 ]);
-
-// https://www.youtube.com/watch?v=7xJiHbOm8-E
-~arpBaseNote = ~baseBaseNote+36; // 65- f4
-~melodySeq =  Ppar([// \midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura,0.25
-	/*Pbind(\instrument, \arp,  \amp, 0.6, \dur, 1/4, \midinote, Pseq([1,7,8] + ~arpBaseNote, inf), \dura, 1/16, \filterRatio, 8, \spread, 5, \mainAmp, 0.3),*/
-	Pbind(\type, \vst_midi,
-		\vst, ~config[\arp][\serum], // the VSTPluginController instance
-		\midicmd, \noteOn,
-		\dur, 1/4,
-		\chan, 0,
-		\midinote, Pseq([1,7,8] + ~arpBaseNote, inf)
-	),
-	Pbind(\type, \set, \id, ~config[\arp][\synth], \amp, 0.4)
-]);
 */
+
 ~techno  = Pdef(\perc,
-	Ppar([ ~percussionSeq, ~baseSeq/*, ~padSeq, ~melodySeq*/])
+	Ppar([ /*~percussionSeq, ~baseSeq, ~leadSeq, ~leadMonoSeq, */~padSeq])
 ).quant = [~tempoClock.beatsPerBar];
 )
 
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);
 ~kick = Synth.new(\kick,[\freq, 20, \dura, 0.5, \metal, 2]);
 ~kick = Synth.new(\kick,[\freq, 28.midicps, \dura, 0.5, \metal, 1.3, \amp, 0.5]);
-~glock = Synth.new(\kick,[\amp,0.8,\freq,70.midicps, \metal:1])
-~snare = Synth.new(\snare,[\amp,0.8,\freq, 1000 /* 200-20000*/, \dur, 0.2 /* 0.05 - 1 */])
-~hatTest = Synth.new(\hat,[\amp,0.8,\freq,100.midicps /* 2000 heavy - 20000 lightest*/, \dur, 0.8 /* 0.05 closed - 1 open */])
-~triangle = Synth.new(\kick,[\freq,110.midicps,\dura,1, \metal,1]);
-~clap = Synth(\clap, [\hit,40, \freq,4000,\wid,2000, \dura,2]);
-~base = Synth(\base,[\freq, 25.midicps, \amp,5, \clip,0.25]);
-
+~glock = Synth.new(\kick,[\amp,0.8, \freq,70.midicps, \metal:1])
+~snare = Synth.new(\snare,[\amp,0.8, \freq, 1000 /* 200-20000*/, \dur, 0.2 /* 0.05 - 1 */])
+~hatTest = Synth.new(\hat,[\amp,0.8, \freq,100.midicps /* 2000 heavy - 20000 lightest*/, \dur, 0.8 /* 0.05 closed - 1 open */])
+~triangle = Synth.new(\kick,[\freq, 110.midicps, \dura, 1, \metal, 1]);
+~clap = Synth(\clap, [\hit, 40, \freq,4000, \wid, 2000, \dura, 2]);
 (
-{
-	var hit_env, hit_sig, sub_env, sub_sig,freq = 25.midicps, dura = 1;
-	freq.postln;
-	sub_env = EnvGen.ar(Env.new([0, 1, 1, 0], [0.4, 0.6] * dura, curve:\sine), doneAction:2);
-	sub_sig = SinOsc.ar(freq) * sub_env;
-	hit_env = EnvGen.ar(Env.new([0,1,0.5,0]*3,[1e-3, 0.01*dura,0.03*dura], curve:-1), doneAction:0);
-	hit_sig = (SinOsc.ar(freq * 4) + BPF.ar(WhiteNoise.ar(10), freq: freq, rq: 0.5)) * hit_env;
-	sub_sig;
-}.play;
+~config = ();
+~config[\pad] = ();
+~config[\pad][\bufSignal] = Buffer.alloc(s, 2048);
+~config[\pad][\bufShaper] = Buffer.alloc(s, 2048);
+~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
+~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [25,-25]).asSignal(1025).asWavetableNoWrap);
+
+SynthDef(\pad, { arg bus,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
+	var sig, freqs;
+	freqs = (f+[1,5,7]).midicps;
+	freqs.postln;
+	sig = BPF.ar(
+		Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
+		freq: freqs[0] + SinOsc.kr(lfo_freq, mul:lfo_wid),
+		rq:rq
+	);
+	Out.ar(bus, sig*amp!2);
+}).add;
+    //~config[\pad][\synth] = Synth(\pad, [\bus, 0, \amp, 0]);
 )
-30.midicps.postln;
+p = Pmono(\pad, \dur, 4).play;
+p.stop;
+~bufSignal = Buffer.alloc(s, 2048);
+~bufSignal.sine3([1,3,5], [0.5, 0.25, 0.75], normalise:true, asWavetable:true);
+~sigSaw = Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap;
+~bufSignal.loadCollection(~sigSaw);
+~bufShaper = Buffer.alloc(s, 2048);
+
 Env.perc(1e-6, dura * 0.5).plot
 Env.perc(1e-6,1).plot
 
