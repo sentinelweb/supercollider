@@ -9,6 +9,7 @@
 // https://www.youtube.com/watch?v=FZeT1oc0RvI (claps)
 
 (
+s.plotTree;
 s.newBusAllocators;
 ServerBoot.removeAll;
 ServerTree.removeAll;
@@ -40,6 +41,8 @@ ServerTree.add(~makeBusses);
 };
 
 ServerQuit.add(~cleanup);
+~makeNodes.value();
+~makeBusses.value();
 )
 (
 s.waitForBoot({// todo try making this whole thing a function and adding to ServerTree
@@ -141,6 +144,8 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 
 	}).add;
 
+	SynthDef(\dummy, { }).add;
+
 	~config = ();
 
 	~openEditors = {arg key;
@@ -165,9 +170,10 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
 	~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [25,-25]).asSignal(1025).asWavetableNoWrap);
 
-	SynthDef(\pad, { arg bus, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
-		var sig,freqs;
-		freqs = 24+
+	SynthDef(\pad, { arg bus,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
+	var sig, freqs;
+	freqs = (f+[0,5,7]).midicps;
+	freqs.postln;
 	sig = BPF.ar(
 		Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
 		freq: freqs[0] + SinOsc.kr(lfo_freq, mul:lfo_wid),
@@ -247,8 +253,8 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 });
 )
 s.plotTree;
-~techno.play;
-~techno.stop;
+Pdef(\techno).play;
+Pdef(\techno).stop;
 
 ~openEditors.(\drivingBase);
 ~save.(\drivingBase);
@@ -270,24 +276,27 @@ FreqScope.new(400, 200, busNum:0, server: s);
 ~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
 ~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
 //https://www.youtube.com/watch?v=XCTQZRXW6Cg
-~percussionSeq = Ppar([
+~baseBaseNote = 29; //29 - f1
+~leadOffset = 24;
+~padOffset = 21;
+Pdef(\perc, Ppar([
 	// kick
-	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, 29,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, Pfunc({~baseBaseNote}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf),\midinote, Pseq([0,35,40,0],inf),	\dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
 	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1, 1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
-	Pbind(\instrument, \hat,  \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12),
+	Pbind(\instrument, \hat,  \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12)
 	/*triangle*/
 	// Pbind(\instrument, \kick,  \dur, 8,\amp, 0.15, \midinote, Pseq([100, 103,104,102, 110],inf),\dura, 4),
 	/*glock*/
 	//Pbind(\instrument, \kick,  \dur, 4,\amp, 0.15, \midinote, Pxrand((Scale.minor.degrees+60),inf),\dura, 4, \metal, 1.05),
 	//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
-]);
-
+])
+).quant_(~tempoClock.beatsPerBar);
 // base low range (30-150) (23-50)
 //https://www.youtube.com/watch?v=hR4W2KyPiTY&t=1155s
-~baseBaseNote = 29;//29 - f1
-~baseSeq = Ppar([
+
+Pdef(\drivingBase, Ppar([
 	// driving base
 	Pbind(\type, \vst_midi,
 		\vst, ~config[\drivingBase][\serum], // the VSTPluginController instance
@@ -297,37 +306,54 @@ FreqScope.new(400, 200, busNum:0, server: s);
 		\midinote, Pseq([~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote+7, ~baseBaseNote+12, ~baseBaseNote+12, ~baseBaseNote+12], inf),
 	),
 	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 1)
-]);
-~leadBaseNote = ~baseBaseNote + 24; // 65- f4
-~leadSeq =  Ppar([
+])
+).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\lead,Ppar([
 	Pbind(\type, \vst_midi,
 		\vst, ~config[\lead][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
 		\dur, 1/4,
 		\chan, 0,
-		\midinote, Pseq([1,7,8] + ~leadBaseNote, inf)
+		\midinote, Pseq([1,7,8],inf) + Pfunc({(~baseBaseNote + ~leadOffset)})
 	),
-	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, 0.0)
-]);
+	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, 0.3)
+])
+).quant_(~tempoClock.beatsPerBar);
 
-~leadMonoBaseNote = ~baseBaseNote + 24; // 65- f4
-~leadMonoSeq =  Ppar([
+Pdef(\leadMono,  Ppar([
 	Pbind(\type, \vst_midi,
 		\vst, ~config[\leadMono][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
 		\dur, Pseq([1,1,2]*4,inf),
 		\chan, 0,
-		\midinote, Pseq([8,4,1] + ~leadMonoBaseNote, inf)
+		\midinote, Pseq([8,4,1], inf) + Pfunc({(~baseBaseNote + ~leadOffset)})
 	),
-	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, 0.0)
-]);
-~padBaseNote = ~baseBaseNote+36;
-~padSeq =
+	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, 0.3)
+])).quant = [~tempoClock.beatsPerBar];
+
+Pdef(\pad,
 	Pmono( \pad,
 		\dur, 4,
-		\amp, 1,
-		\midinote, [~padBaseNote, ~padBaseNote+5, ~padBaseNote+7]
-	);
+		\amp, 0.3,
+		\f, Pfunc({(~baseBaseNote + ~padOffset).yield;})
+	)
+).quant_(~tempoClock.beatsPerBar);
+
+/*Pdef(\compose, Pmono(
+	\dummy,
+	\baseNote, Pseq([29,31,32,35,27],inf).trace,
+	\dur,8
+)
+).quant_(~tempoClock.beatsPerBar);*/
+
+
+PdefAllGui();
+
+Pdef(\techno,
+	Ppar([/*Pdef(\compose),*/ Pdef(\perc), Pdef(\drivingBase), Pdef(\leadMono),  Pdef(\pad)])
+).quant_(~tempoClock.beatsPerBar);
+
 /*
 // pads mid range (100-250) (44-60 midi)
 // https://www.youtube.com/watch?v=-rI14gsFQ1k
@@ -346,11 +372,12 @@ FreqScope.new(400, 200, busNum:0, server: s);
 ]);
 */
 
-~techno  = Pdef(\perc,
-	Ppar([ /*~percussionSeq, ~baseSeq, ~leadSeq, ~leadMonoSeq, */~padSeq])
-).quant = [~tempoClock.beatsPerBar];
-)
 
+)
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////// test area ///////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+Pdef(\compose).pattern.patternpairs
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);
 ~kick = Synth.new(\kick,[\freq, 20, \dura, 0.5, \metal, 2]);
 ~kick = Synth.new(\kick,[\freq, 28.midicps, \dura, 0.5, \metal, 1.3, \amp, 0.5]);
@@ -369,7 +396,7 @@ FreqScope.new(400, 200, busNum:0, server: s);
 
 SynthDef(\pad, { arg bus,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
 	var sig, freqs;
-	freqs = (f+[1,5,7]).midicps;
+	freqs = (f+[0,5,7]).midicps;
 	freqs.postln;
 	sig = BPF.ar(
 		Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
@@ -380,7 +407,7 @@ SynthDef(\pad, { arg bus,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
 }).add;
     //~config[\pad][\synth] = Synth(\pad, [\bus, 0, \amp, 0]);
 )
-p = Pmono(\pad, \dur, 4).play;
+p = Pmono(\pad, \dur, 4, \f, 60).play;
 p.stop;
 ~bufSignal = Buffer.alloc(s, 2048);
 ~bufSignal.sine3([1,3,5], [0.5, 0.25, 0.75], normalise:true, asWavetable:true);
@@ -397,3 +424,19 @@ Env.adsr(1e-3, 0.02, 0.5, 0.1, curve:0).plot
 
 Env.new([0,1,1,0],[0.4,0.6], curve:\sine).plot;
 Env.new([0, 1, 1, 0]*2, [0.4, 0.2] * 1.5, curve:\sine).plot;
+(
+~bv = 8;
+Pdef(\compose,
+	Pbind(\b, Pseq([Pfunc({~bv=32}), Pfunc({~bv=28})], inf), \dur, 2 ).trace
+).quant_(1);
+
+Pdef(\play,
+	Pbind(\a, Pfunc({~bv}), \dur, 1).trace
+).quant_(1);
+)
+
+Pdef(\compose).play;
+Pdef(\play).play;
+Pdef(\compose).stop;
+Pdef(\play).stop;
+p.stop;
