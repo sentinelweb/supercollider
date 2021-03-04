@@ -267,9 +267,9 @@ Pdef(\techno).stop;
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
-~config[\pad][\bufSignal].sine3([1,3,5], [0.5, 0.25, 0.75], normalise:true, asWavetable:true);
+~config[\pad][\bufSignal].sine3([1,3,5], [0.25, 0.5, 0.75], normalise:true, asWavetable:true);
 ~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
-~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [50,-50]).asSignal(1025).asWavetableNoWrap);
+~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [1,-1]).asSignal(1025).asWavetableNoWrap);
 // sequence
 (
 ~tempoClock.tempo = 123/60;
@@ -278,7 +278,7 @@ FreqScope.new(400, 200, busNum:0, server: s);
 //https://www.youtube.com/watch?v=XCTQZRXW6Cg
 ~baseBaseNote = 29; //29 - f1
 ~leadOffset = 24;
-~padOffset = 21;
+~padOffset = 12;
 Pdef(\perc, Ppar([
 	// kick
 	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, Pfunc({~baseBaseNote}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
@@ -335,8 +335,8 @@ Pdef(\leadMono,  Ppar([
 Pdef(\pad,
 	Pmono( \pad,
 		\dur, 4,
-		\amp, 0.3,
-		\f, Pfunc({(~baseBaseNote + ~padOffset).yield;})
+		\amp, 0.2,
+		\f, Pfunc({(~baseBaseNote + ~padOffset)})
 	)
 ).quant_(~tempoClock.beatsPerBar);
 
