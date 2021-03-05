@@ -41,8 +41,8 @@ ServerTree.add(~makeBusses);
 };
 
 ServerQuit.add(~cleanup);
-~makeNodes.value();
-~makeBusses.value();
+/*~makeNodes.value();
+~makeBusses.value();*/
 )
 (
 s.waitForBoot({// todo try making this whole thing a function and adding to ServerTree
@@ -249,6 +249,8 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~load.(\drivingBase);
 	~load.(\lead);
 	~load.(\leadMono);
+	~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
+	~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
 	/*~load.(\arp);*/
 });
 )
@@ -273,17 +275,17 @@ FreqScope.new(400, 200, busNum:0, server: s);
 // sequence
 (
 ~tempoClock.tempo = 123/60;
-~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
-~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
-//https://www.youtube.com/watch?v=XCTQZRXW6Cg
-~baseBaseNote = 29; //29 - f1
-~leadOffset = 24;
-~padOffset = 12;
+~cmp = (
+	bass:(seq:Seqr[29,31,32,35,33,29,27,28]),
+	lead:(off:24),
+	pad:(off:12)
+);
+
 Pdef(\perc, Ppar([
 	// kick
-	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, Pfunc({~baseBaseNote}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
-	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf),\midinote, Pseq([0,35,40,0],inf),	\dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
+	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
 	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1, 1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
 	Pbind(\instrument, \hat,  \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12)
 	/*triangle*/
@@ -293,9 +295,9 @@ Pdef(\perc, Ppar([
 	//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
 ])
 ).quant_(~tempoClock.beatsPerBar);
+
 // base low range (30-150) (23-50)
 //https://www.youtube.com/watch?v=hR4W2KyPiTY&t=1155s
-
 Pdef(\drivingBase, Ppar([
 	// driving base
 	Pbind(\type, \vst_midi,
@@ -303,7 +305,7 @@ Pdef(\drivingBase, Ppar([
 		\midicmd, \noteOn,
 		\chan, 0,
 		\dur, 1/4,
-		\midinote, Pseq([~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote, ~baseBaseNote+7, ~baseBaseNote+12, ~baseBaseNote+12, ~baseBaseNote+12], inf),
+		\midinote, Pseq([0,0,0,0, 7, 12,12,12], inf)+ Pfunc({~cmp[\bass][\seq].v}),
 	),
 	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 1)
 ])
@@ -315,7 +317,7 @@ Pdef(\lead,Ppar([
 		\midicmd, \noteOn,
 		\dur, 1/4,
 		\chan, 0,
-		\midinote, Pseq([1,7,8],inf) + Pfunc({(~baseBaseNote + ~leadOffset)})
+		\midinote, Pseq([1,7,8],inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\lead][\off])})
 	),
 	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, 0.3)
 ])
@@ -327,51 +329,31 @@ Pdef(\leadMono,  Ppar([
 		\midicmd, \noteOn,
 		\dur, Pseq([1,1,2]*4,inf),
 		\chan, 0,
-		\midinote, Pseq([8,4,1], inf) + Pfunc({(~baseBaseNote + ~leadOffset)})
+		\midinote, Pseq([8,4,1], inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\lead][\off])})
 	),
 	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, 0.3)
-])).quant = [~tempoClock.beatsPerBar];
+])).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\pad,
 	Pmono( \pad,
 		\dur, 4,
 		\amp, 0.2,
-		\f, Pfunc({(~baseBaseNote + ~padOffset)})
+		\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])})
 	)
 ).quant_(~tempoClock.beatsPerBar);
 
-/*Pdef(\compose, Pmono(
+Pdef(\compose, Pmono(
 	\dummy,
-	\baseNote, Pseq([29,31,32,35,27],inf).trace,
-	\dur,8
+	\baseNote, Pfunc({~cmp[\bass][\seq].next }).trace,
+	\dur, 16
 )
-).quant_(~tempoClock.beatsPerBar);*/
-
-
+).quant_(~tempoClock.beatsPerBar);
+~cmp[\bass][\seq].offset( ~cmp[\lead][\off])
 PdefAllGui();
 
 Pdef(\techno,
 	Ppar([/*Pdef(\compose),*/ Pdef(\perc), Pdef(\drivingBase), Pdef(\leadMono),  Pdef(\pad)])
 ).quant_(~tempoClock.beatsPerBar);
-
-/*
-// pads mid range (100-250) (44-60 midi)
-// https://www.youtube.com/watch?v=-rI14gsFQ1k
-~padBaseNote = ~baseBaseNote+24;//53 - f3
-~padAmp = 0.04;
-~padSpread = 3;
-~padSeq = Ppar([
-	Pbind(\type, \vst_midi,
-		\vst, ~config[\pad][\serum], // the VSTPluginController instance
-		\midicmd, \noteOn,
-		\dur, 4,
-		\chan, 0,
-		\midinote, [~padBaseNote, ~padBaseNote+3, ~padBaseNote+7]
-	),
-	Pbind(\type, \set, \id, ~config[\pad][\synth], \amp, ~padAmp)
-]);
-*/
-
 
 )
 //////////////////////////////////////////////////////////////////////////
@@ -440,3 +422,8 @@ Pdef(\play).play;
 Pdef(\compose).stop;
 Pdef(\play).stop;
 p.stop;
+
+d = Seqr[1,2,3];
+d.offset(7);
+d.next();
+z = MyClass();
