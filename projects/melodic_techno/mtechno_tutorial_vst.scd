@@ -20,13 +20,17 @@ ServerQuit.removeAll;
 	s.newBusAllocators;
 	~reverbBus = Bus.audio(s,2);
 	~reverbTomBus = Bus.audio(s,2);
-	("MadeBus:"++~reverbBus).postln;
+	~masterBus = Bus.audio(s,2);
+	~emptyInBus = Bus.audio(s,2);
+
+	("MadeBus:"++~masterBus).postln;
 };
 ~path = PathName(thisProcess.nowExecutingPath).parentPath++"data/";
 ~makeNodes = {
 	s.bind({
 		~mainGrp = Group.new;
 		~reverbGrp = Group.after(~mainGrp);
+		~masterGrp = Group.after(~reverbGrp);
 	});
 };
 
@@ -118,7 +122,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	// https://blog.rumblesan.com/post/53271713909/drum-sounds-in-supercollider-part-2
 
 	SynthDef('clap', {
-		arg dura = 1,hit=50,freq=3000,wid=2000;
+		arg out=0,dura = 1,hit=50,freq=3000,wid=2000;
 		var claposc, clapnoise, clapoutput, clap_env, hit_osc, hit_env;
 
 		clap_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
@@ -146,6 +150,12 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 
 	SynthDef(\dummy, { }).add;
 
+	SynthDef(\master, {arg in, amp;
+		var sig;
+		sig = In.ar(in, 2);
+		Out.ar(0, sig * amp);
+	}).add;
+
 	~config = ();
 
 	~openEditors = {arg key;
@@ -170,67 +180,68 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
 	~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [25,-25]).asSignal(1025).asWavetableNoWrap);
 
-	SynthDef(\pad, { arg bus,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
-	var sig, freqs;
-	freqs = (f+[0,5,7]).midicps;
-	freqs.postln;
-	sig = BPF.ar(
-		Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
-		freq: freqs[0] + SinOsc.kr(lfo_freq, mul:lfo_wid),
-		rq:rq
-	);
-	Out.ar(bus, sig*amp!2);
-}).add;
+	SynthDef(\pad, { arg out,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
+		var sig, freqs;
+		freqs = (f+[0,5,7]).midicps;
+		freqs.postln;
+		sig = BPF.ar(
+			Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
+			freq: freqs[0] + SinOsc.kr(lfo_freq, mul:lfo_wid),
+			rq:rq
+		);
+		Out.ar(out, sig*amp!2);
+	}).add;
 
 	// driving base
-	SynthDef(\drivingBase, { arg bus, sideChain, amp=1;
+	SynthDef(\drivingBase, { arg in, out, sideChain, amp=1;
 		var sig, sideChainSig;
-		sig = In.ar(bus, 2);
+		sig = In.ar(in, 2);
 		sig = VSTPlugin.ar(sig, 2, id: \serum);
 		sideChainSig = InFeedback.ar(sideChain, 2);// take input from last block as reverbGroup is out of order
 		//sideChainSig.scope("SideChain input");
 		sig = VSTPlugin.ar(sig, 2, id: \eq, auxInput: sideChainSig);//, auxInput: sideChainSig
-		Out.ar(bus, sig*amp);
+		Out.ar(out, sig*amp);
 	}).add;
 
 	s.sync;
+
 	VSTPlugin.search(verbose:true);
 
 	s.sync;
 
-	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~out ], ~reverbGrp );
-	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~out ], ~reverbGrp );
+	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~masterBus ], ~reverbGrp );
+	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~masterBus ], ~reverbGrp );
 
 	~config[\drivingBase] = ();
-	~config[\drivingBase][\synth] = Synth(\drivingBase, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\drivingBase][\synth] = Synth(\drivingBase, [\out, ~masterBus, \sideChain, ~reverbBus, \in, ~emptyInBus]);
 	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
 	// lead
-	SynthDef(\lead, { arg bus, amp=1;
+	SynthDef(\lead, { arg in, out, amp=1;
 		var sig;
-		sig = In.ar(bus, 2);
+		sig = In.ar(in, 2);
 		sig = VSTPlugin.ar(sig, 2, id: \serum);
 		sig = VSTPlugin.ar(sig, 2, id: \eq);
-		Out.ar(bus, sig*amp);
+		Out.ar(out, sig*amp);
 	}).add;
 
 	~config[\lead] = ();
-	~config[\lead][\synth] = Synth(\lead, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\lead][\synth] = Synth(\lead, [\out, ~masterBus, \in, ~emptyInBus]);
 	~config[\lead][\serum] = VSTPluginController(~config[\lead][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\lead][\eq] = VSTPluginController(~config[\lead][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
 	// leadMono
-	SynthDef(\leadMono, { arg bus, amp=1;
+	SynthDef(\leadMono, { arg in, out, amp=1;
 		var sig;
-		sig = In.ar(bus, 2);
+		sig = In.ar(in, 2);
 		sig = VSTPlugin.ar(sig, 2, id: \serum);
 		sig = VSTPlugin.ar(sig, 2, id: \eq);
-		Out.ar(bus, sig*amp);
+		Out.ar(out, sig*amp);
 	}).add;
 
 	~config[\leadMono] = ();
-	~config[\leadMono][\synth] = Synth(\leadMono, [\bus, 0, \sideChain, ~reverbBus]);
+	~config[\leadMono][\synth] = Synth(\leadMono, [\out, ~masterBus, \in, ~emptyInBus ]);
 	~config[\leadMono][\serum] = VSTPluginController(~config[\leadMono][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\leadMono][\eq] = VSTPluginController(~config[\leadMono][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
@@ -249,9 +260,11 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~load.(\drivingBase);
 	~load.(\lead);
 	~load.(\leadMono);
+
 	~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
 	~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
-	/*~load.(\arp);*/
+
+	~masterSynth = Synth.new(\master, [\in, ~masterBus, \amp, 0.7], ~masterGrp);
 });
 )
 s.plotTree;
@@ -266,6 +279,8 @@ Pdef(\techno).stop;
 
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
+
+~masterSynth.set(\amp, 0.0);
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
@@ -283,11 +298,11 @@ FreqScope.new(400, 200, busNum:0, server: s);
 
 Pdef(\perc, Ppar([
 	// kick
-	Pbind(\instrument, \kick,	\amp, 1.0, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick, \amp, 1.0, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1, 1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
-	Pbind(\instrument, \hat,  \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12)
+	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1,1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus)
 	/*triangle*/
 	// Pbind(\instrument, \kick,  \dur, 8,\amp, 0.15, \midinote, Pseq([100, 103,104,102, 110],inf),\dura, 4),
 	/*glock*/
@@ -311,7 +326,7 @@ Pdef(\drivingBase, Ppar([
 ])
 ).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\lead,Ppar([
+Pdef(\lead, Ppar([
 	Pbind(\type, \vst_midi,
 		\vst, ~config[\lead][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
@@ -329,26 +344,24 @@ Pdef(\leadMono,  Ppar([
 		\midicmd, \noteOn,
 		\dur, Pseq([1,1,2]*4,inf),
 		\chan, 0,
-		\midinote, Pseq([8,4,1], inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\lead][\off])})
+		\midinote, Pseq([8,5,0], inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\lead][\off])})
 	),
 	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, 0.3)
 ])).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\pad,
-	Pmono( \pad,
+Pdef(\pad, Pmono( \pad,
 		\dur, 4,
 		\amp, 0.2,
-		\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])})
-	)
-).quant_(~tempoClock.beatsPerBar);
+		\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])}),
+		\out, ~masterBus
+)).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\compose, Pmono(
 	\dummy,
 	\baseNote, Pfunc({~cmp[\bass][\seq].next }).trace,
 	\dur, 16
-)
-).quant_(~tempoClock.beatsPerBar);
-~cmp[\bass][\seq].offset( ~cmp[\lead][\off])
+)).quant_(~tempoClock.beatsPerBar);
+
 PdefAllGui();
 
 Pdef(\techno,
@@ -406,24 +419,5 @@ Env.adsr(1e-3, 0.02, 0.5, 0.1, curve:0).plot
 
 Env.new([0,1,1,0],[0.4,0.6], curve:\sine).plot;
 Env.new([0, 1, 1, 0]*2, [0.4, 0.2] * 1.5, curve:\sine).plot;
-(
-~bv = 8;
-Pdef(\compose,
-	Pbind(\b, Pseq([Pfunc({~bv=32}), Pfunc({~bv=28})], inf), \dur, 2 ).trace
-).quant_(1);
 
-Pdef(\play,
-	Pbind(\a, Pfunc({~bv}), \dur, 1).trace
-).quant_(1);
-)
 
-Pdef(\compose).play;
-Pdef(\play).play;
-Pdef(\compose).stop;
-Pdef(\play).stop;
-p.stop;
-
-d = Seqr[1,2,3];
-d.offset(7);
-d.next();
-z = MyClass();
