@@ -75,6 +75,22 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	}).add;
 
 	/* ----------------------
+	Synthetic triangle
+	---------------------- */
+	SynthDef(\tri, {
+		arg amp = 0.5, dura = 0.25, freq = 50, metal = 1.1, out = 0 ;
+		var amp_env, phase_env, phase, sig;
+
+		amp_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
+		phase_env = EnvGen.ar(Env.perc(1e-6,0.125));
+
+		phase = SinOsc.ar(20,0,pi) * phase_env;
+		sig = SinOsc.ar([freq, metal*freq], phase) * amp_env * amp;
+
+		Out.ar(out, sig);
+	}).add;
+
+	/* ----------------------
 	Synthetic snare
 	---------------------- */
 	SynthDef(\snare, {
@@ -122,7 +138,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	// https://blog.rumblesan.com/post/53271713909/drum-sounds-in-supercollider-part-2
 
 	SynthDef('clap', {
-		arg out=0,dura = 1,hit=50,freq=3000,wid=2000;
+		arg out=0,dura = 1,hit=50,freq=3000,wid=2000, amp=1;
 		var claposc, clapnoise, clapoutput, clap_env, hit_osc, hit_env;
 
 		clap_env   = EnvGen.ar(Env.perc(1e-6,dura), doneAction:2);
@@ -143,7 +159,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		hit_osc = BPF.ar(WhiteNoise.ar(1), freq: hit.midicps, rq:0.1, mul:1);
 
 		Out.ar(0,
-			Pan2.ar((clapoutput * clap_env)+ (hit_osc* hit_env), 0)
+			Pan2.ar(((clapoutput * clap_env) + (hit_osc * hit_env)) * amp, 0)
 		)
 
 	}).add;
@@ -301,10 +317,10 @@ Pdef(\perc, Ppar([
 	Pbind(\instrument, \kick, \amp, 1.0, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1,  \dur, Pseq([Rest(14), 1,1]/4,inf),\hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
-	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus)
+	Pbind(\instrument, \clap, \amp, 1, \dur, Pseq([Rest(14),/* 0, 0, */1, 1]/4,inf), \hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus),
 	/*triangle*/
-	// Pbind(\instrument, \kick,  \dur, 8,\amp, 0.15, \midinote, Pseq([100, 103,104,102, 110],inf),\dura, 4),
+	//Pbind(\instrument, \tri,  \dur, 8,\amp, 0.10, \midinote, Pseq([0, 3, 5, 3, 8, 6, 5, 2],inf) + Pfunc({~cmp[\bass][\seq].v+72}),\dura, 4, \out, ~masterBus),
 	/*glock*/
 	//Pbind(\instrument, \kick,  \dur, 4,\amp, 0.15, \midinote, Pxrand((Scale.minor.degrees+60),inf),\dura, 4, \metal, 1.05),
 	//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
