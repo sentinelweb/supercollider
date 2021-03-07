@@ -9,6 +9,7 @@
 // https://www.youtube.com/watch?v=FZeT1oc0RvI (claps)
 
 (
+s=Server.default;
 s.plotTree;
 s.newBusAllocators;
 ServerBoot.removeAll;
@@ -296,28 +297,39 @@ Pdef(\techno).stop;
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
 
-~masterSynth.set(\amp, 0.0);
+~masterSynth.set(\amp, 0.65);
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
-~config[\pad][\bufSignal].sine3([1,3,5], [0.25, 0.5, 0.75], normalise:true, asWavetable:true);
+~config[\pad][\bufSignal].sine3([0,1,2,3,4,5], [0.25, 0.5, 0.75,], normalise:true, asWavetable:true);
 ~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
-~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [1,-1]).asSignal(1025).asWavetableNoWrap);
+~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [50,-50]).asSignal(1025).asWavetableNoWrap);
+
+~cmp[\leadMono] = (off:24, amp:0.3);
+~cmp[\pad] = (off:12, amp:0.3);
+~cmp[\bass][\seq].v
 // sequence
 (
 ~tempoClock.tempo = 123/60;
 ~cmp = (
-	bass:(seq:Seqr[29,31,32,35,33,29,27,28]),
-	lead:(off:24),
-	pad:(off:12)
+	bass:(seq:Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp:1),
+	lead:(off:24, amp:0.3),
+	leadMono:(off:24, amp:0.3),
+	pad:(off:12, amp:0.2)
 );
+
+Pdef(\compose, Pmono(
+	\dummy,
+	\baseNote, Pfunc({~cmp[\bass][\seq].next}).trace,
+	\dur, 16
+)).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\perc, Ppar([
 	// kick
-	Pbind(\instrument, \kick, \amp, 1.0, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}) ,	\dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}), \dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
-	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(5),1,1, Rest(1)]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3,	\metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1, \dur, Pseq([Rest(14),/* 0, 0, */1, 1]/4,inf), \hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
+	Pbind(\instrument, \clap, \amp, 1, \dur, Pseq([Rest(0)+14,/* 0, 0, */1, 1]/4,inf), \hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
 	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus),
 	/*triangle*/
 	//Pbind(\instrument, \tri,  \dur, 8,\amp, 0.10, \midinote, Pseq([0, 3, 5, 3, 8, 6, 5, 2],inf) + Pfunc({~cmp[\bass][\seq].v+72}),\dura, 4, \out, ~masterBus),
@@ -336,9 +348,9 @@ Pdef(\drivingBase, Ppar([
 		\midicmd, \noteOn,
 		\chan, 0,
 		\dur, 1/4,
-		\midinote, Pseq([0,0,0,0, 7, 12,12,12], inf)+ Pfunc({~cmp[\bass][\seq].v}),
+		\midinote, Pseq([0, 0, 0, 0, 7, 12, 12, 12], inf) + Pfunc({~cmp[\bass][\seq].v}),
 	),
-	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, 1)
+	Pbind(\type, \set, \id,~config[\drivingBase][\synth], \amp, Pfunc({~cmp[\bass][\amp]}), \dur, 1/4)
 ])
 ).quant_(~tempoClock.beatsPerBar);
 
@@ -348,9 +360,9 @@ Pdef(\lead, Ppar([
 		\midicmd, \noteOn,
 		\dur, 1/4,
 		\chan, 0,
-		\midinote, Pseq([1,7,8],inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\lead][\off])})
+		\midinote, Pseq([1, 7, 8], inf) + Pfunc({~cmp[\bass][\seq].offset(~cmp[\lead][\off])})
 	),
-	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, 0.3)
+	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, Pfunc({~cmp[\lead][\amp]}))
 ])
 ).quant_(~tempoClock.beatsPerBar);
 
@@ -358,30 +370,24 @@ Pdef(\leadMono,  Ppar([
 	Pbind(\type, \vst_midi,
 		\vst, ~config[\leadMono][\serum], // the VSTPluginController instance
 		\midicmd, \noteOn,
-		\dur, Pseq([1,1,2]*4,inf),
+		\dur, Pseq([1, 1, 2] * 4, inf),
 		\chan, 0,
-		\midinote, Pseq([8,5,0], inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\lead][\off])})
+		\midinote, Pseq([8, 5, 0], inf) + Pfunc({~cmp[\bass][\seq].offset( ~cmp[\leadMono][\off])})
 	),
-	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, 0.3)
+	Pbind(\type, \set, \id, ~config[\leadMono][\synth], \amp, Pfunc({~cmp[\leadMono][\amp]}))
 ])).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\pad, Pmono( \pad,
 		\dur, 4,
-		\amp, 0.2,
+	\amp, Pfunc({~cmp[\pad][\amp]}),
 		\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])}),
 		\out, ~masterBus
-)).quant_(~tempoClock.beatsPerBar);
-
-Pdef(\compose, Pmono(
-	\dummy,
-	\baseNote, Pfunc({~cmp[\bass][\seq].next }).trace,
-	\dur, 16
 )).quant_(~tempoClock.beatsPerBar);
 
 PdefAllGui();
 
 Pdef(\techno,
-	Ppar([/*Pdef(\compose),*/ Pdef(\perc), Pdef(\drivingBase), Pdef(\leadMono),  Pdef(\pad)])
+	Ppar([Pdef(\compose), Pdef(\perc), Pdef(\drivingBase), Pdef(\leadMono),  Pdef(\pad)])
 ).quant_(~tempoClock.beatsPerBar);
 
 )
@@ -437,3 +443,7 @@ Env.new([0,1,1,0],[0.4,0.6], curve:\sine).plot;
 Env.new([0, 1, 1, 0]*2, [0.4, 0.2] * 1.5, curve:\sine).plot;
 
 
+~sq =Seqr[40,45,50];
+~sq.next;
+~sq.v
+~sq.pos
