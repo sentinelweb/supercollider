@@ -159,7 +159,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		hit_env   = EnvGen.ar(Env.perc(1e-6, dura*0.005), doneAction:0);
 		hit_osc = BPF.ar(WhiteNoise.ar(1), freq: hit.midicps, rq:0.1, mul:1);
 
-		Out.ar(0,
+		Out.ar(out,
 			Pan2.ar(((clapoutput * clap_env) + (hit_osc * hit_env)) * amp, 0)
 		)
 
@@ -297,7 +297,7 @@ Pdef(\techno).stop;
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
 
-~masterSynth.set(\amp, 0.65);
+~masterSynth.set(\amp, 0.0);
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
@@ -307,11 +307,14 @@ FreqScope.new(400, 200, busNum:0, server: s);
 
 ~cmp[\leadMono] = (off:24, amp:0.3);
 ~cmp[\pad] = (off:12, amp:0.3);
-~cmp[\bass][\seq].v
+~cmp[\perc][\clap][\note]=100
 // sequence
 (
 ~tempoClock.tempo = 123/60;
 ~cmp = (
+	perc:(
+		clap:(idx:Seqr[0,3,0,2,1,3,1,0], note:122)
+	),
 	bass:(seq:Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp:1),
 	lead:(off:24, amp:0.3),
 	leadMono:(off:24, amp:0.3),
@@ -320,7 +323,9 @@ FreqScope.new(400, 200, busNum:0, server: s);
 
 Pdef(\compose, Pmono(
 	\dummy,
-	\baseNote, Pfunc({~cmp[\bass][\seq].next}).trace,
+	\baseNote, Pfunc({~cmp[\bass][\seq].next}),
+	\clap, Pfunc({~cmp[\perc][\clap][\idx].next}),
+	\clapNote, Pfunc({~cmp[\perc][\clap][\note]=exprand(90,125).asInteger}),
 	\dur, 16
 )).quant_(~tempoClock.beatsPerBar);
 
@@ -329,10 +334,19 @@ Pdef(\perc, Ppar([
 	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}), \dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1, \dur, Pseq([Rest(0)+14,/* 0, 0, */1, 1]/4,inf), \hit, 30,\midinote, 122, \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \clap, \amp, 1,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus,
+		\dur, Pswitch([
+			Pseq([Rest(0)+14,1,1]/4,4),
+			Pseq([Rest(0)+12,1,1,1,1]/4,4),
+			Pseq([Rest(0)+12,1,Rest(1),1,1]/4,4),
+			Pseq([Rest(0)+12,1,1,Rest(1),1]/4,4)
+		],
+		Pfunc({~cmp[\perc][\clap][\idx].v}),
+		inf
+	)),
 	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus),
 	/*triangle*/
-	//Pbind(\instrument, \tri,  \dur, 8,\amp, 0.10, \midinote, Pseq([0, 3, 5, 3, 8, 6, 5, 2],inf) + Pfunc({~cmp[\bass][\seq].v+72}),\dura, 4, \out, ~masterBus),
+	Pbind(\instrument, \tri,  \dur, 16,\amp, 0.05, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 4, \metal, 1.2,\out, ~reverbBus),
 	/*glock*/
 	//Pbind(\instrument, \kick,  \dur, 4,\amp, 0.15, \midinote, Pxrand((Scale.minor.degrees+60),inf),\dura, 4, \metal, 1.05),
 	//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
