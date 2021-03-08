@@ -55,7 +55,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	Synthetic bass drum
 	---------------------- */
 	SynthDef(\kick, {
-		arg amp = 0.5, dura = 0.25, freq = 50, metal = 1.1, out = 0 ;
+		arg  out = 0, amp = 0.5, dura = 0.25, freq = 50, metal = 1.1, makeup_gain=1;
 		var amp_env, freq_env, phase_env, phase, sig, mid_sig, sub_env, sub_sig, hit_env, hit_sig;
 
 		amp_env   = EnvGen.ar(Env.perc(1e-6, dura), doneAction:2) * amp;
@@ -67,10 +67,12 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		sub_env = EnvGen.ar(Env.new([0, 1, 1, 0]*amp, [0.4, 0.2] * dura, curve:\sine), doneAction:0);
 		sub_sig = SinOsc.ar(freq) * sub_env;
 
-		hit_env = EnvGen.ar(Env.new([0,1,0.5,0]*2*amp,[1e-4, 0.01,0.03]*dura, curve:-1), doneAction:0);
+		hit_env = EnvGen.ar(Env.new([0, 1, 0.5, 0]*2*amp,[1e-4, 0.01, 0.03]*dura, curve:-1), doneAction:0);
 		hit_sig = (SinOsc.ar(freq*2)+BPF.ar(WhiteNoise.ar(10), freq: freq, rq: 0.5)) * hit_env;
 
 		sig = sub_sig + mid_sig + hit_sig;
+
+		sig = Compander.ar(sig, sig, thresh:0.8, slopeBelow:2, slopeAbove:0.6, clampTime:0.035, releaseTime:0.3) * makeup_gain;
 
 		Out.ar(out, sig);
 	}).add;
@@ -297,7 +299,7 @@ Pdef(\techno).stop;
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
 
-~masterSynth.set(\amp, 0.0);
+~masterSynth.set(\amp, 0.50);
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
@@ -305,36 +307,36 @@ FreqScope.new(400, 200, busNum:0, server: s);
 ~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
 ~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [50,-50]).asSignal(1025).asWavetableNoWrap);
 
-~cmp[\leadMono] = (off:24, amp:0.3);
-~cmp[\pad] = (off:12, amp:0.3);
-~cmp[\perc][\clap][\note]=100
+~cmp[\leadMono] = (off: 24, amp: 0.3);
+~cmp[\pad] = (off: 12, amp: 0.3);
 // sequence
 (
 ~tempoClock.tempo = 123/60;
 ~cmp = (
 	perc:(
-		clap:(idx:Seqr[0,3,0,2,1,3,1,0], note:122)
+		clap:(idx: Seqr[0, 3, 0, 2, 1, 3, 1, 0], note: 122)
 	),
-	bass:(seq:Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp:1),
-	lead:(off:24, amp:0.3),
-	leadMono:(off:24, amp:0.3),
-	pad:(off:12, amp:0.2)
+	// todo tune these changes better - some changes are better than others
+	bass:(seq: Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp: 0.9),
+	lead:(off: 24, amp: 0.3),
+	leadMono:(off: 24, amp: 0.3),
+	pad:(off: 12, amp: 0.2)
 );
 
 Pdef(\compose, Pmono(
 	\dummy,
 	\baseNote, Pfunc({~cmp[\bass][\seq].next}),
 	\clap, Pfunc({~cmp[\perc][\clap][\idx].next}),
-	\clapNote, Pfunc({~cmp[\perc][\clap][\note]=exprand(90,125).asInteger}),
+	\clapNote, Pfunc({~cmp[\perc][\clap][\note]=exprand(100,120).asInteger}),
 	\dur, 16
 )).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\perc, Ppar([
 	// kick
-	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}), \dura, 0.5,	\metal, 1.6,\group, ~mainGrp, \out, ~reverbBus),
+	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}), \dura, 0.6,	\metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus),//
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbBus,
+	Pbind(\instrument, \clap, \amp, 1.3,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbTomBus,
 		\dur, Pswitch([
 			Pseq([Rest(0)+14,1,1]/4,4),
 			Pseq([Rest(0)+12,1,1,1,1]/4,4),
@@ -346,7 +348,7 @@ Pdef(\perc, Ppar([
 	)),
 	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus),
 	/*triangle*/
-	Pbind(\instrument, \tri,  \dur, 16,\amp, 0.05, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 4, \metal, 1.2,\out, ~reverbBus),
+	Pbind(\instrument, \tri,  \dur, 16,\amp, 0.02, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 2, \metal, 1.003,\out, ~masterBus),
 	/*glock*/
 	//Pbind(\instrument, \kick,  \dur, 4,\amp, 0.15, \midinote, Pxrand((Scale.minor.degrees+60),inf),\dura, 4, \metal, 1.05),
 	//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
@@ -411,7 +413,7 @@ Pdef(\techno,
 Pdef(\compose).pattern.patternpairs
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);
 ~kick = Synth.new(\kick,[\freq, 20, \dura, 0.5, \metal, 2]);
-~kick = Synth.new(\kick,[\freq, 28.midicps, \dura, 0.5, \metal, 1.3, \amp, 0.5]);
+~kick = Synth.new(\kick,[\freq, 28.midicps, \dura, 0.5, \metal, 1.3, \amp, 1]);
 ~glock = Synth.new(\kick,[\amp,0.8, \freq,70.midicps, \metal:1])
 ~snare = Synth.new(\snare,[\amp,0.8, \freq, 1000 /* 200-20000*/, \dur, 0.2 /* 0.05 - 1 */])
 ~hatTest = Synth.new(\hat,[\amp,0.8, \freq,100.midicps /* 2000 heavy - 20000 lightest*/, \dur, 0.8 /* 0.05 closed - 1 open */])
