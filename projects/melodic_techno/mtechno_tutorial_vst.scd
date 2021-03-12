@@ -264,17 +264,10 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~config[\leadMono][\serum] = VSTPluginController(~config[\leadMono][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\leadMono][\eq] = VSTPluginController(~config[\leadMono][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
-	/*~config[\pad] = ();
-	~config[\pad][\synth] = Synth(\serumeq, [\bus, 0]);
-	~config[\pad][\serum] = VSTPluginController(~config[\pad][\synth],\serum).open("Serum", verbose: true,  editor:true);
-	~config[\pad][\eq] = VSTPluginController(~config[\pad][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);
-
-	~config[\arp] = ();
-	~config[\arp][\synth] = Synth(\serumeq, [\bus, 0]);
-	~config[\arp][\serum] = VSTPluginController(~config[\arp][\synth],\serum).open("Serum", verbose: true,  editor:true);
-	~config[\arp][\eq] = VSTPluginController(~config[\arp][\synth], \eq).open("TDR Nova", verbose: true,  editor:true);*/
-
 	s.sync;
+
+
+	~apc = AkaiAPC40();
 
 	~load.(\drivingBase);
 	~load.(\lead);
@@ -333,7 +326,7 @@ Pdef(\compose, Pmono(
 
 Pdef(\perc, Ppar([
 	// kick
-	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, Pfunc({~cmp[\bass][\seq].v}), \dura, 0.6,	\metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus),//
+	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, 29, \dura, 0.6,	\metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus),//
 	// tom
 	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
 	Pbind(\instrument, \clap, \amp, 1.3,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbTomBus,
@@ -394,10 +387,10 @@ Pdef(\leadMono,  Ppar([
 ])).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\pad, Pmono( \pad,
-		\dur, 4,
+	\dur, 4,
 	\amp, Pfunc({~cmp[\pad][\amp]}),
-		\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])}),
-		\out, ~masterBus
+	\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])}),
+	\out, ~masterBus
 )).quant_(~tempoClock.beatsPerBar);
 
 PdefAllGui();
@@ -405,6 +398,24 @@ PdefAllGui();
 Pdef(\techno,
 	Ppar([Pdef(\compose), Pdef(\perc), Pdef(\drivingBase), Pdef(\leadMono),  Pdef(\pad)])
 ).quant_(~tempoClock.beatsPerBar);
+
+~apc.addNoteIn(\grid11,~apc.togPdef(\perc));
+~apc.addNoteOut(\grid11, { if (Pdef(\perc).isPlaying) {127}{0}});
+~apc.addNoteIn(\grid21,~apc.togPdef(\drivingBase));
+~apc.addNoteOut(\grid21, {if (Pdef(\drivingBase).isPlaying) {127}{0}});
+~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addNoteIn(\grid31,~apc.togPdef(\lead));
+~apc.addNoteOut(\grid31, { if (Pdef(\lead).isPlaying) {127}{0}});
+~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addNoteIn(\grid41,~apc.togPdef(\leadMono));
+~apc.addNoteOut(\grid41, {if (Pdef(\leadMono).isPlaying) {127}{0}});
+~apc.addCtlIn(\s4,{~cmp[\leadMono][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addNoteIn(\grid51,~apc.togPdef(\pad));
+~apc.addNoteOut(\grid51, {if (Pdef(\pad).isPlaying) {127}{0}});
+~apc.addCtlIn(\s5,{~cmp[\pad][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addNoteIn(\grid81,~apc.togPdef(\compose));
+~apc.addNoteOut(\grid81, { if (Pdef(\compose).isPlaying) {127}{0}});
+~apc.addCtlIn(\master,{~masterSynth.set(\amp, ~val.linexp(0,127,0.01,1.2);); });
 
 )
 //////////////////////////////////////////////////////////////////////////
@@ -463,3 +474,26 @@ Env.new([0, 1, 1, 0]*2, [0.4, 0.2] * 1.5, curve:\sine).plot;
 ~sq.next;
 ~sq.v
 ~sq.pos
+MIDIClient.init;
+~indexOfAkai = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("APC40 mkII")});
+~midiOut = MIDIOut.new(~indexOfAkai, MIDIClient.destinations.at(~indexOfAkai).uid);
+~midiOut.latency = 0.0;
+~midiOut.control(0, 15, 127);
+~midiOut.noteOn(0, 15, 65);
+~midiOut.noteOn(0, 15, 77);
+r = Routine({{(1..127).do{arg i;~midiOut.noteOn(0, 15, i);i.postln;1.wait}}.loop})
+r.play
+r.stop
+~midiOut.noteOff(0, 15, 127);
+
+~apc = AkaiAPC40();
+~apc.addCtlIn(\k1,{["k1",~val].postln});
+~apc.addNoteIn(\grid11,{if (Pdef(\compose).isPlaying){Pdef(\compose).stop}{Pdef(\compose).play}});
+~apc.addNoteOut(\grid11,{if (Pdef(\compose).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid22,{if (Pdef(\compose).isPlaying) {127}{0}});
+~apc.update
+~apc.dump
+//~apc.t({~val.postln});
+{|v|["d",v].postln}.value(4)
+
+MIDIClient.sources.at(0).uid

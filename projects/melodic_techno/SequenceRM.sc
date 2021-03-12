@@ -1,4 +1,5 @@
-Seqr[] {
+// cp /Users/robmunro/Library/Application\ Support/SuperCollider/Extensions/Custom/SequenceRM.sc projects/melodic_techno/
+Seqr[] {//extend SimmpleNumber remove v
     var <allOfThem;
 	var ctr = nil;
 
