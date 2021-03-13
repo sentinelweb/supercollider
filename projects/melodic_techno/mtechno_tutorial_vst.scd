@@ -21,6 +21,7 @@ ServerQuit.removeAll;
 	s.newBusAllocators;
 	~reverbBus = Bus.audio(s,2);
 	~reverbTomBus = Bus.audio(s,2);
+	~percBus = Bus.audio(s,2);
 	~masterBus = Bus.audio(s,2);
 	~emptyInBus = Bus.audio(s,2);
 
@@ -169,10 +170,10 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 
 	SynthDef(\dummy, { }).add;
 
-	SynthDef(\master, {arg in, amp;
+	SynthDef(\gain, {arg in, out = 0,amp;
 		var sig;
 		sig = In.ar(in, 2);
-		Out.ar(0, sig * amp);
+		Out.ar(out, sig * amp);
 	}).add;
 
 	~config = ();
@@ -227,9 +228,9 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	VSTPlugin.search(verbose:true);
 
 	s.sync;
-
-	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~masterBus ], ~reverbGrp );
-	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~masterBus ], ~reverbGrp );
+	~percGain = Synth.new(\gain, [\in, ~percBus, \out, ~masterBus, \amp, 1], ~reverbGrp);// order matters (before reverbs)
+	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~percBus ], ~reverbGrp );
+	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~percBus ], ~reverbGrp );
 
 	~config[\drivingBase] = ();
 	~config[\drivingBase][\synth] = Synth(\drivingBase, [\out, ~masterBus, \sideChain, ~reverbBus, \in, ~emptyInBus]);
@@ -275,7 +276,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
 	~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
 
-	~masterSynth = Synth.new(\master, [\in, ~masterBus, \amp, 0.7], ~masterGrp);
+	~masterGain = Synth.new(\gain, [\in, ~masterBus, \amp, 0.7], ~masterGrp);
 });
 )
 s.plotTree;
@@ -291,7 +292,7 @@ Pdef(\techno).stop;
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
 
-~masterSynth.set(\amp, 0.50);
+~masterGain.set(\amp, 0.50);
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
@@ -306,7 +307,10 @@ FreqScope.new(400, 200, busNum:0, server: s);
 ~tempoClock.tempo = 123/60;
 ~cmp = (
 	perc:(
-		clap:(idx: Seqr[0, 3, 0, 2, 1, 3, 1, 0], note: 122)
+		kick:(amp:1.2),
+		tom:(amp:0.5),
+		clap:(idx: Seqr[0, 3, 0, 2, 1, 3, 1, 0], note: 122, amp:1.3),
+		tri:(amp:0.02),
 	),
 	// todo tune these changes better - some changes are better than others
 	bass:(seq: Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp: 0.9),
@@ -323,12 +327,13 @@ Pdef(\compose, Pmono(
 	\dur, 16
 )).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\perc, Ppar([
-	// kick
-	Pbind(\instrument, \kick, \amp, 1.20, \dur, 1, \midinote, 29, \dura, 0.6,	\metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus),//
-	// tom
-	Pbind(\instrument, \kick, \amp, 0.5, \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus),
-	Pbind(\instrument, \clap, \amp, 1.3,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbTomBus,
+Pdef(\kick, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\kick][\amp]}), \dur, 1, \midinote, 29, \dura, 0.6,	\metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus)
+).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\tom,Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\tom][\amp]}), \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus)
+).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\clap, Pbind(\instrument, \clap, \amp, 1.3,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbTomBus,
 		\dur, Pswitch([
 			Pseq([Rest(0)+14,1,1]/4,4),
 			Pseq([Rest(0)+12,1,1,1,1]/4,4),
@@ -337,15 +342,41 @@ Pdef(\perc, Ppar([
 		],
 		Pfunc({~cmp[\perc][\clap][\idx].v}),
 		inf
-	)),
-	Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~masterBus),
-	/*triangle*/
-	Pbind(\instrument, \tri,  \dur, 16,\amp, 0.02, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 2, \metal, 1.003,\out, ~masterBus),
-	/*glock*/
-	//Pbind(\instrument, \kick,  \dur, 4,\amp, 0.15, \midinote, Pxrand((Scale.minor.degrees+60),inf),\dura, 4, \metal, 1.05),
-	//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
-])
+	))
 ).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\hat, Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~percBus)
+).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\tri,Pbind(\instrument, \tri,  \dur, 16,\amp, 0.02, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 2, \metal, 1.003,\out, ~percBus)
+).quant_(~tempoClock.beatsPerBar);
+
+~perc = {|play|
+	if (play) {
+		Pdef(\kick).play;
+		Pdef(\tom).play;
+		Pdef(\clap).play;
+		Pdef(\hat).play;
+		Pdef(\tri).play;
+	}{
+		Pdef(\kick).stop;
+		Pdef(\tom).stop;
+		Pdef(\clap).stop;
+		Pdef(\hat).stop;
+		Pdef(\tri).stop;
+	}
+};
+~percIsPlaying = {
+	Pdef(\kick).isPlaying || Pdef(\tom).isPlaying || Pdef(\clap).isPlaying || Pdef(\hat).isPlaying || Pdef(\tri).isPlaying;
+};
+//~perc =  Ppar([Pdef(\kick), Pdef(\tom), Pdef(\clap), Pdef(\hat), Pdef(\tri)]);//.quant_(~tempoClock.beatsPerBar);
+/*Pdef(\perc, Ppar([Pdef(\kick), Pdef(\tom), Pdef(\clap), Pdef(\hat), Pdef(\tri)])
+).quant_(~tempoClock.beatsPerBar);*/
+
+// glock
+//Pbind(\instrument, \kick,  \dur, 4,\amp, 0.15, \midinote, Pxrand((Scale.minor.degrees+60),inf),\dura, 4, \metal, 1.05),
+// snare
+//Pbind(\instrument, \snare,  \dur, Pseq([Rest(2),1,1], inf), \amp, 1,\midinote, 120, \dura,  0.2),
 
 // base low range (30-150) (23-50)
 //https://www.youtube.com/watch?v=hR4W2KyPiTY&t=1155s
@@ -394,27 +425,38 @@ Pdef(\pad, Pmono( \pad,
 
 PdefAllGui();
 
-Pdef(\techno,
-	Ppar([Pdef(\compose), Pdef(\perc), Pdef(\drivingBase), Pdef(\leadMono),  Pdef(\pad)])
-).quant_(~tempoClock.beatsPerBar);
+// perc
+~apc.addNoteIn(\track1,{ ~perc.value(~percIsPlaying.value.not)});
+~apc.addNoteOut(\track1, { if (~percIsPlaying.value) {\red}{\off}});
+~apc.addNoteIn(\grid14,~apc.togPdef(\hat));
+~apc.addNoteOut(\grid14, { if (Pdef(\hat).isPlaying) {\yellow}{\off}});
+~apc.addNoteIn(\grid15,~apc.togPdef(\tri));
+~apc.addNoteOut(\grid15, { if (Pdef(\tri).isPlaying) {\white}{\off}});
+~apc.addNoteIn(\grid13,~apc.togPdef(\clap));
+~apc.addNoteOut(\grid13, { if (Pdef(\clap).isPlaying) {\purple}{\off}});
+~apc.addNoteIn(\grid12,~apc.togPdef(\tom));
+~apc.addNoteOut(\grid12, { if (Pdef(\tom).isPlaying) {\orange}{\off}});
+~apc.addNoteIn(\grid11,~apc.togPdef(\kick));
+~apc.addNoteOut(\grid11, { if (Pdef(\kick).isPlaying) {\red}{\off}});
+~apc.addCtlIn(\s1,{~percGain.set(\amp, ~val.linexp(0,127,0.01,1.5))});
+~apc.addCtlIn(\k1,{~cmp[\perc][\kick][\amp] = ~val.linlin(0,127,0.01,2)});
+~apc.addCtlOut(\k1,{~cmp[\perc][\kick][\amp].linlin(0.01,2,0,127);});
 
-~apc.addNoteIn(\grid11,~apc.togPdef(\perc));
-~apc.addNoteOut(\grid11, { if (Pdef(\perc).isPlaying) {\red}{\off}});
-~apc.addNoteIn(\grid21,~apc.togPdef(\drivingBase));
-~apc.addNoteOut(\grid21, {if (Pdef(\drivingBase).isPlaying) {\red}{\off}});
+~apc.addNoteIn(\track2,~apc.togPdef(\drivingBase));
+~apc.addNoteOut(\track2, {if (Pdef(\drivingBase).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2);});
-~apc.addNoteIn(\grid31,~apc.togPdef(\lead));
-~apc.addNoteOut(\grid31, { if (Pdef(\lead).isPlaying) {\red}{\off}});
+~apc.addNoteIn(\track3,~apc.togPdef(\lead));
+~apc.addNoteOut(\track3, { if (Pdef(\lead).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2);});
-~apc.addNoteIn(\grid41,~apc.togPdef(\leadMono));
-~apc.addNoteOut(\grid41, {if (Pdef(\leadMono).isPlaying) {\red}{\off}});
+~apc.addNoteIn(\track4,~apc.togPdef(\leadMono));
+~apc.addNoteOut(\track4, {if (Pdef(\leadMono).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s4,{~cmp[\leadMono][\amp] = ~val.linexp(0,127,0.01,1.2);});
-~apc.addNoteIn(\grid51,~apc.togPdef(\pad));
-~apc.addNoteOut(\grid51, {if (Pdef(\pad).isPlaying) {\red}{\off}});
+~apc.addNoteIn(\track5,~apc.togPdef(\pad));
+~apc.addNoteOut(\track5, {if (Pdef(\pad).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s5,{~cmp[\pad][\amp] = ~val.linexp(0,127,0.01,1.2);});
-~apc.addNoteIn(\grid81,~apc.togPdef(\compose));
-~apc.addNoteOut(\grid81, { if (Pdef(\compose).isPlaying) {\red}{\off}});
-~apc.addCtlIn(\master,{~masterSynth.set(\amp, ~val.linexp(0,127,0.01,1.2);); });
+~apc.addNoteIn(\sceneMstr,~apc.togPdef(\compose));
+~apc.addNoteOut(\sceneMstr, { if (Pdef(\compose).isPlaying) {\on}{\off}});
+~apc.addCtlIn(\master,{~masterGain.set(\amp, ~val.linexp(0,127,0.01,1.2);); });
 
 )
 //////////////////////////////////////////////////////////////////////////
@@ -484,7 +526,7 @@ MIDIClient.init;
 r = Routine({{(0..127).do{arg i;~midiOut.noteOn(0, 15, i);i.postln;5.wait}}.loop})
 r.play
 r.stop
-~midiOut.noteOn(0, 15, 127);
+~midiOut.noteOn(0, 62, 0);
 //\red:5,\orange:9,\yellow:13,\yel_grn:75,\green:17,\teal:65,\cyan:37,\blue:45,\move:53,\pink:57,\purple:49, \white:119
 ~apc = AkaiAPC40();
 ~apc.addCtlIn(\k1,{["k1",~val].postln});
