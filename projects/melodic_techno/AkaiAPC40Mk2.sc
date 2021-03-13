@@ -53,7 +53,7 @@ AkaiAPC40 {
 	controlIn {|val, num, chan, src|
 		var func = inFunc[\control][this.key(num,chan)]??inFunc[\control][this.key(num,\all)];
 		~val = val;
-		if (func.notNil) {currentEnvironment.use(func);this.update} {["akai-in-cc", "v", val, "ctl", num, "ch",chan, "src", src].postln;}
+		if (func.notNil) {currentEnvironment.use(func);} {["akai-in-cc", "v", val, "ctl", num, "ch",chan, "src", src].postln;}
 
 	}
 
@@ -135,7 +135,7 @@ AkaiAPC40 {
 			{(color++" is not valid note:"++key).postln}
 		};
 		outFunc[\control].keys.do{arg key;
-			midiOut.control(noteChMap[key]?0, noteMap[key], outFunc[\control][key].value);
+			midiOut.control(ctlChMap[key]?0, ctlMap[key], outFunc[\control][key].value);
 		};
 	}
 

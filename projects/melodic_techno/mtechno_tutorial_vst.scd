@@ -36,8 +36,21 @@ ServerQuit.removeAll;
 	});
 };
 
+~makeBuffers = {
+	var path = PathName(thisProcess.nowExecutingPath).parentPath++"vocals/";
+	~vocals = Dictionary.new;
+	PathName(path).entries.do{
+		arg file;
+		var key = file.fileName.split($-)[0].asSymbol;
+		var buf = Buffer.read(s, file.fullPath);
+		if (~vocals[key].isNil) {~vocals.add(key -> [])};
+		~vocals[key] = ~vocals[key].add(buf);
+	};
+	~vocals;
+};
 ServerTree.add(~makeNodes);
 ServerTree.add(~makeBusses);
+ServerTree.add(~makeBuffers);
 ~cleanup = {
 	s.newBusAllocators;
 	ServerBoot.removeAll;
@@ -47,6 +60,7 @@ ServerTree.add(~makeBusses);
 };
 
 ServerQuit.add(~cleanup);
+
 /*~makeNodes.value();
 ~makeBusses.value();*/
 )
@@ -174,6 +188,19 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		var sig;
 		sig = In.ar(in, 2);
 		Out.ar(out, sig * amp);
+	}).add;
+
+	SynthDef(\vocals, {
+		arg c1=1, c2=(-1),
+		buf =0, rate=1, spos=0,
+		pan=0, amp=1, out=0;
+		var sig, env;
+		var rateScale = rate*BufRateScale.ir(buf);
+		env = EnvGen.kr(Env([0,1,1,0],[0.05,0.99,0.05]*BufDur.ir(buf)/rateScale,[c1,0,c2]),doneAction:2);
+		sig = PlayBuf.ar(2, buf, rateScale, startPos:spos);
+		sig = sig * env;
+		sig = Pan2.ar(sig, pan, amp);
+		Out.ar(out, sig);
 	}).add;
 
 	~config = ();
@@ -316,7 +343,8 @@ FreqScope.new(400, 200, busNum:0, server: s);
 	bass:(seq: Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp: 0.9),
 	lead:(off: 24, amp: 0.3),
 	leadMono:(off: 24, amp: 0.3),
-	pad:(off: 12, amp: 0.2)
+	pad:(off: 12, amp: 0.2),
+	vocals:(samp: \being, amp: 1),
 );
 
 Pdef(\compose, Pmono(
@@ -324,10 +352,11 @@ Pdef(\compose, Pmono(
 	\baseNote, Pfunc({~cmp[\bass][\seq].next}),
 	\clap, Pfunc({~cmp[\perc][\clap][\idx].next}),
 	\clapNote, Pfunc({~cmp[\perc][\clap][\note]=exprand(100,120).asInteger}),
+	\vocal, Pfunc({~cmp[\vocals][\samp]=~vocals.keys.choose}),
 	\dur, 16
 )).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\kick, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\kick][\amp]}), \dur, 1, \midinote, 29, \dura, 0.6,	\metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus)
+Pdef(\kick, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\kick][\amp]}), \dur, 1, \midinote, 29, \dura, 0.6, \metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus)
 ).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\tom,Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\tom][\amp]}), \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus)
@@ -417,10 +446,17 @@ Pdef(\leadMono,  Ppar([
 ])).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\pad, Pmono( \pad,
-	\dur, 4,
+	\dur, 1,
 	\amp, Pfunc({~cmp[\pad][\amp]}),
 	\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])}),
 	\out, ~masterBus
+)).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\vocals, Pbind(\instrument, \vocals,
+	\buf, Pfunc({~vocals[~cmp[\vocals][\samp]].choose.bufnum}),
+	\amp, Pfunc({~cmp[\vocals][\amp]}),
+	\rate, 0.8,
+	\dur, 16,
 )).quant_(~tempoClock.beatsPerBar);
 
 PdefAllGui();
@@ -440,29 +476,34 @@ PdefAllGui();
 ~apc.addNoteOut(\grid11, { if (Pdef(\kick).isPlaying) {\red}{\off}});
 ~apc.addCtlIn(\s1,{~percGain.set(\amp, ~val.linexp(0,127,0.01,1.5))});
 ~apc.addCtlIn(\k1,{~cmp[\perc][\kick][\amp] = ~val.linlin(0,127,0.01,2)});
-~apc.addCtlOut(\k1,{~cmp[\perc][\kick][\amp].linlin(0.01,2,0,127);});
+~apc.addCtlOut(\k1,{~cmp[\perc][\kick][\amp].linlin(0.01,2,0,127).asInteger});
 
 ~apc.addNoteIn(\track2,~apc.togPdef(\drivingBase));
 ~apc.addNoteOut(\track2, {if (Pdef(\drivingBase).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2)});
 ~apc.addNoteIn(\track3,~apc.togPdef(\lead));
 ~apc.addNoteOut(\track3, { if (Pdef(\lead).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2)});
 ~apc.addNoteIn(\track4,~apc.togPdef(\leadMono));
 ~apc.addNoteOut(\track4, {if (Pdef(\leadMono).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s4,{~cmp[\leadMono][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addCtlIn(\s4,{~cmp[\leadMono][\amp] = ~val.linexp(0,127,0.01,1.2)});
 ~apc.addNoteIn(\track5,~apc.togPdef(\pad));
 ~apc.addNoteOut(\track5, {if (Pdef(\pad).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s5,{~cmp[\pad][\amp] = ~val.linexp(0,127,0.01,1.2);});
+~apc.addCtlIn(\s5,{~cmp[\pad][\amp] = ~val.linexp(0, 127, 0.01, 1.2)});
+~apc.addNoteIn(\track6,~apc.togPdef(\vocals));
+~apc.addNoteOut(\track6, {if (Pdef(\vocals).isPlaying) {\on}{\off}});
+~apc.addCtlIn(\s6,{~cmp[\vocals][\amp] = ~val.linexp(0, 127, 0.01, 2)});
 ~apc.addNoteIn(\sceneMstr,~apc.togPdef(\compose));
 ~apc.addNoteOut(\sceneMstr, { if (Pdef(\compose).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\master,{~masterGain.set(\amp, ~val.linexp(0,127,0.01,1.2);); });
+~apc.addCtlIn(\master,{~masterGain.set(\amp, ~val.linexp(0, 127, 0.01, 1.2)) });
 
 )
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////// test area ///////////////////////////////
 //////////////////////////////////////////////////////////////////////////
-Pdef(\compose).pattern.patternpairs
+~cmp[\vocals][\samp].postln
+~cmp[\perc][\kick][\amp].linlin(0.01,2,0,127).asInteger
+~vocal = Synth(\vocals,[\buf, ~vocals[\being][0].bufnum, \amp, 1]);
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);
 ~kick = Synth.new(\kick,[\freq, 20, \dura, 0.5, \metal, 2]);
 ~kick = Synth.new(\kick,[\freq, 28.midicps, \dura, 0.5, \metal, 1.3, \amp, 1]);
