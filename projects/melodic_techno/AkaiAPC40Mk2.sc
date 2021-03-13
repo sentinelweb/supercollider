@@ -1,5 +1,5 @@
 AkaiAPC40 {
-	classvar ctlMap, ctlChMap, noteMap, noteChMap;
+	classvar ctlMap, ctlChMap, noteMap, noteChMap, colorMap;
 	var indexOfAkai = 0, midiOut, inFunc, outFunc;
 
 	*initClass {
@@ -23,6 +23,9 @@ AkaiAPC40 {
 		);
 		noteChMap = (
 			\clipStop1:0,\clipStop2:1,\clipStop3:2,\clipStop4:3,\clipStop5:4,\clipStop6:5,\clipStop7:6,\clipStop8:7,
+		);
+		colorMap = (
+			\red:5,\orange:9,\yellow:13,\yel_grn:75,\green:17,\teal:65,\cyan:37,\blue:45,\move:53,\pink:57,\purple:49, \white:119, \off:0
 		);
     }
 
@@ -102,7 +105,10 @@ AkaiAPC40 {
 
 	update {
 		outFunc[\note].keys.do{arg key;
-			midiOut.noteOn(noteChMap[key]?0, noteMap[key], outFunc[\note][key].value);
+			var color = outFunc[\note][key].value;
+			if (color.isInteger.not) {color = colorMap[color]};
+			if (color.isInteger) {midiOut.noteOn(noteChMap[key]?0, noteMap[key], color);}
+			{(color++" is not valid note:"++key).postln}
 		}
 	}
 

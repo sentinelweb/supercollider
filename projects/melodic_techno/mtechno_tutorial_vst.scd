@@ -266,7 +266,6 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 
 	s.sync;
 
-
 	~apc = AkaiAPC40();
 
 	~load.(\drivingBase);
@@ -400,21 +399,21 @@ Pdef(\techno,
 ).quant_(~tempoClock.beatsPerBar);
 
 ~apc.addNoteIn(\grid11,~apc.togPdef(\perc));
-~apc.addNoteOut(\grid11, { if (Pdef(\perc).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid11, { if (Pdef(\perc).isPlaying) {\red}{\off}});
 ~apc.addNoteIn(\grid21,~apc.togPdef(\drivingBase));
-~apc.addNoteOut(\grid21, {if (Pdef(\drivingBase).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid21, {if (Pdef(\drivingBase).isPlaying) {\red}{\off}});
 ~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2);});
 ~apc.addNoteIn(\grid31,~apc.togPdef(\lead));
-~apc.addNoteOut(\grid31, { if (Pdef(\lead).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid31, { if (Pdef(\lead).isPlaying) {\red}{\off}});
 ~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2);});
 ~apc.addNoteIn(\grid41,~apc.togPdef(\leadMono));
-~apc.addNoteOut(\grid41, {if (Pdef(\leadMono).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid41, {if (Pdef(\leadMono).isPlaying) {\red}{\off}});
 ~apc.addCtlIn(\s4,{~cmp[\leadMono][\amp] = ~val.linexp(0,127,0.01,1.2);});
 ~apc.addNoteIn(\grid51,~apc.togPdef(\pad));
-~apc.addNoteOut(\grid51, {if (Pdef(\pad).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid51, {if (Pdef(\pad).isPlaying) {\red}{\off}});
 ~apc.addCtlIn(\s5,{~cmp[\pad][\amp] = ~val.linexp(0,127,0.01,1.2);});
 ~apc.addNoteIn(\grid81,~apc.togPdef(\compose));
-~apc.addNoteOut(\grid81, { if (Pdef(\compose).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid81, { if (Pdef(\compose).isPlaying) {\red}{\off}});
 ~apc.addCtlIn(\master,{~masterSynth.set(\amp, ~val.linexp(0,127,0.01,1.2);); });
 
 )
@@ -481,16 +480,17 @@ MIDIClient.init;
 ~midiOut.control(0, 15, 127);
 ~midiOut.noteOn(0, 15, 65);
 ~midiOut.noteOn(0, 15, 77);
-r = Routine({{(1..127).do{arg i;~midiOut.noteOn(0, 15, i);i.postln;1.wait}}.loop})
+~index
+r = Routine({{(0..127).do{arg i;~midiOut.noteOn(0, 15, i);i.postln;5.wait}}.loop})
 r.play
 r.stop
-~midiOut.noteOff(0, 15, 127);
-
+~midiOut.noteOn(0, 15, 127);
+//\red:5,\orange:9,\yellow:13,\yel_grn:75,\green:17,\teal:65,\cyan:37,\blue:45,\move:53,\pink:57,\purple:49, \white:119
 ~apc = AkaiAPC40();
 ~apc.addCtlIn(\k1,{["k1",~val].postln});
 ~apc.addNoteIn(\grid11,{if (Pdef(\compose).isPlaying){Pdef(\compose).stop}{Pdef(\compose).play}});
 ~apc.addNoteOut(\grid11,{if (Pdef(\compose).isPlaying) {127}{0}});
-~apc.addNoteOut(\grid22,{if (Pdef(\compose).isPlaying) {127}{0}});
+~apc.addNoteOut(\grid22,{\off});
 ~apc.update
 ~apc.dump
 //~apc.t({~val.postln});
