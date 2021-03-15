@@ -10,8 +10,8 @@
 
 (
 s=Server.default;
-s.plotTree;
-s.newBusAllocators;
+//s.plotTree;
+//s.newBusAllocators;
 ServerBoot.removeAll;
 ServerTree.removeAll;
 ServerQuit.removeAll;
@@ -26,31 +26,39 @@ ServerQuit.removeAll;
 	~emptyInBus = Bus.audio(s,2);
 
 	("MadeBus:"++~masterBus).postln;
+	s.sync;
 };
-~path = PathName(thisProcess.nowExecutingPath).parentPath++"data/";
+~path = PathName(thisProcess.nowExecutingPath).parentPath;
+~pathData = ~path++"data/";
 ~makeNodes = {
-	s.bind({
+	//s.bind({
 		~mainGrp = Group.new;
 		~reverbGrp = Group.after(~mainGrp);
 		~masterGrp = Group.after(~reverbGrp);
-	});
+	//});
+	"buffers creatd".postln;
+	s.sync;
 };
 
 ~makeBuffers = {
-	var path = PathName(thisProcess.nowExecutingPath).parentPath++"vocals/";
+	var vpath;
+	vpath = ~path++"vocals/";
 	~vocals = Dictionary.new;
-	PathName(path).entries.do{
+	PathName(vpath).entries.do{
 		arg file;
-		var key = file.fileName.split($-)[0].asSymbol;
-		var buf = Buffer.read(s, file.fullPath);
+		var key,buf;
+		key = file.fileName.split($-)[0].asSymbol;
+		buf = Buffer.read(s, file.fullPath);
 		if (~vocals[key].isNil) {~vocals.add(key -> [])};
 		~vocals[key] = ~vocals[key].add(buf);
 	};
-	~vocals;
+	"buffers creatd".postln;
+	s.sync;
 };
 ServerTree.add(~makeNodes);
-ServerTree.add(~makeBusses);
-ServerTree.add(~makeBuffers);
+ServerBoot.add(~makeBusses);
+ServerBoot.add(~makeBuffers);
+ServerBoot.add({s.plotTree});
 ~cleanup = {
 	s.newBusAllocators;
 	ServerBoot.removeAll;
@@ -61,11 +69,7 @@ ServerTree.add(~makeBuffers);
 
 ServerQuit.add(~cleanup);
 
-/*~makeNodes.value();
-~makeBusses.value();*/
-)
-(
-s.waitForBoot({// todo try making this whole thing a function and adding to ServerTree
+~makeSynths = {// todo try making this whole thing a function and adding to ServerTree
 	/* ----------------------
 	Synthetic bass drum
 	---------------------- */
@@ -87,7 +91,7 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 
 		sig = sub_sig + mid_sig + hit_sig;
 
-		sig = Compander.ar(sig, sig, thresh:0.8, slopeBelow:2, slopeAbove:0.6, clampTime:0.035, releaseTime:0.3) * makeup_gain;
+		sig = Compander.ar(sig, sig, thresh:0.8, slopeBelow:2, slopeAbove:0.6, clampTime:0.035, relaxTime:0.3) * makeup_gain;
 
 		Out.ar(out, sig);
 	}).add;
@@ -203,36 +207,12 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		Out.ar(out, sig);
 	}).add;
 
-	~config = ();
-
-	~openEditors = {arg key;
-		~config[key][\serum].editor;
-		~config[key][\eq].editor;
-	};
-
-	~save = {arg key;
-		~config[key][\serum].writeProgram(~path++key++"_serum.fxp");
-		~config[key][\eq].writeProgram(~path++key++"_eq.fxp");
-	};
-
-	~load = {arg key;
-		~config[key][\serum].readProgram(~path++key++"_serum.fxp");
-		~config[key][\eq].readProgram(~path++key++"_eq.fxp");
-	};
-
-	//pad
-	~config[\pad] = ();
-	~config[\pad][\bufSignal] = Buffer.alloc(s, 2048);
-	~config[\pad][\bufShaper] = Buffer.alloc(s, 2048);
-	~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
-	~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [25,-25]).asSignal(1025).asWavetableNoWrap);
-
-	SynthDef(\pad, { arg out,f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
+	SynthDef(\pad, { arg out, sigBufNum, shapeBufNum, f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
 		var sig, freqs;
 		freqs = (f+[0,5,7]).midicps;
 		freqs.postln;
 		sig = BPF.ar(
-			Shaper.ar(~config[\pad][\bufShaper], Osc.ar(~config[\pad][\bufSignal], freqs, mul:1/freqs.size)),
+			Shaper.ar(shapeBufNum, Osc.ar(sigBufNum, freqs, mul:1/freqs.size)),
 			freq: freqs[0] + SinOsc.kr(lfo_freq, mul:lfo_wid),
 			rq:rq
 		);
@@ -250,20 +230,6 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		Out.ar(out, sig*amp);
 	}).add;
 
-	s.sync;
-
-	VSTPlugin.search(verbose:true);
-
-	s.sync;
-	~percGain = Synth.new(\gain, [\in, ~percBus, \out, ~masterBus, \amp, 1], ~reverbGrp);// order matters (before reverbs)
-	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~percBus ], ~reverbGrp );
-	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~percBus ], ~reverbGrp );
-
-	~config[\drivingBase] = ();
-	~config[\drivingBase][\synth] = Synth(\drivingBase, [\out, ~masterBus, \sideChain, ~reverbBus, \in, ~emptyInBus]);
-	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
-	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
-
 	// lead
 	SynthDef(\lead, { arg in, out, amp=1;
 		var sig;
@@ -272,11 +238,6 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		sig = VSTPlugin.ar(sig, 2, id: \eq);
 		Out.ar(out, sig*amp);
 	}).add;
-
-	~config[\lead] = ();
-	~config[\lead][\synth] = Synth(\lead, [\out, ~masterBus, \in, ~emptyInBus]);
-	~config[\lead][\serum] = VSTPluginController(~config[\lead][\synth],\serum).open("Serum", verbose: true,  editor:true);
-	~config[\lead][\eq] = VSTPluginController(~config[\lead][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
 	// leadMono
 	SynthDef(\leadMono, { arg in, out, amp=1;
@@ -287,8 +248,53 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 		Out.ar(out, sig*amp);
 	}).add;
 
+	s.sync;
+
+	"synths created".postln;
+};
+~makeConfig = {
+	VSTPlugin.search(verbose:true);
+	s.sync;
+	~config = ();
+
+	~openEditors = {arg key;
+		~config[key][\serum].editor;
+		~config[key][\eq].editor;
+	};
+
+	~save = {arg key;
+		~config[key][\serum].writeProgram(~pathData++key++"_serum.fxp");
+		~config[key][\eq].writeProgram(~pathData++key++"_eq.fxp");
+	};
+
+	~load = {arg key;
+		~config[key][\serum].readProgram(~pathData++key++"_serum.fxp");
+		~config[key][\eq].readProgram(~pathData++key++"_eq.fxp");
+	};
+
+	//pad
+	~config[\pad] = ();
+	~config[\pad][\bufSignal] = Buffer.alloc(s, 2048);
+	~config[\pad][\bufShaper] = Buffer.alloc(s, 2048);
+	~config[\pad][\bufSignal].loadCollection(Env([0,1,-1,0], [1,0,1]).asSignal(1024).asWavetableNoWrap);
+	~config[\pad][\bufShaper].loadCollection(Env([-0.2,0,0.2], [1,1], [25,-25]).asSignal(1025).asWavetableNoWrap);
+
+	~percGain = Synth.new(\gain, [\in, ~percBus, \out, ~masterBus, \amp, 1], ~reverbGrp);// order matters (before reverbs)
+	~reverbSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbBus, \out, ~percBus ], ~reverbGrp );
+	~reverbTomSynth = Synth.new( \reverb, [ \amp, 1, \mix, 0.75, \room, 0.8, \damp, 0.5, \amp, 1.0, \in, ~reverbTomBus, \out, ~percBus ], ~reverbGrp );
+
+	~config[\drivingBase] = ();
+	~config[\drivingBase][\synth] = Synth(\drivingBase, [\out, ~masterBus, \sideChain, ~reverbBus, \in, ~emptyInBus], ~mainGrp);
+	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
+
+	~config[\lead] = ();
+	~config[\lead][\synth] = Synth(\lead, [\out, ~masterBus, \in, ~emptyInBus], ~mainGrp);
+	~config[\lead][\serum] = VSTPluginController(~config[\lead][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\lead][\eq] = VSTPluginController(~config[\lead][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
+
 	~config[\leadMono] = ();
-	~config[\leadMono][\synth] = Synth(\leadMono, [\out, ~masterBus, \in, ~emptyInBus ]);
+	~config[\leadMono][\synth] = Synth(\leadMono, [\out, ~masterBus, \in, ~emptyInBus ], ~mainGrp);
 	~config[\leadMono][\serum] = VSTPluginController(~config[\leadMono][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\leadMono][\eq] = VSTPluginController(~config[\leadMono][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
@@ -304,11 +310,12 @@ s.waitForBoot({// todo try making this whole thing a function and adding to Serv
 	~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
 
 	~masterGain = Synth.new(\gain, [\in, ~masterBus, \amp, 0.7], ~masterGrp);
-});
+	s.sync;
+	"config created".postln;
+};// makePiece
+ServerTree.add(~makeSynths);
+ServerTree.add(~makeConfig);
 )
-s.plotTree;
-Pdef(\techno).play;
-Pdef(\techno).stop;
 
 ~openEditors.(\drivingBase);
 ~save.(\drivingBase);
@@ -319,7 +326,6 @@ Pdef(\techno).stop;
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
 
-~masterGain.set(\amp, 0.50);
 
 FreqScope.new(400, 200, busNum:0, server: s);
 
@@ -344,7 +350,7 @@ FreqScope.new(400, 200, busNum:0, server: s);
 	lead:(off: 24, amp: 0.3),
 	leadMono:(off: 24, amp: 0.3),
 	pad:(off: 12, amp: 0.2),
-	vocals:(samp: \being, amp: 1),
+	vocals:(samp: \being, amp: 1)
 );
 
 Pdef(\compose, Pmono(
@@ -359,7 +365,7 @@ Pdef(\compose, Pmono(
 Pdef(\kick, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\kick][\amp]}), \dur, 1, \midinote, 29, \dura, 0.6, \metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus)
 ).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\tom,Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\tom][\amp]}), \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus)
+Pdef(\tom, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\tom][\amp]}), \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus)
 ).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\clap, Pbind(\instrument, \clap, \amp, 1.3,  \hit, 30,\midinote, Pfunc({~cmp[\perc][\clap][\note]}), \wid, 200, \dura,  1,\group, ~mainGrp, \out, ~reverbTomBus,
@@ -374,10 +380,10 @@ Pdef(\clap, Pbind(\instrument, \clap, \amp, 1.3,  \hit, 30,\midinote, Pfunc({~cm
 	))
 ).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\hat, Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~percBus)
+Pdef(\hat, Pbind(\instrument, \hat, \amp, Pseq([0.2, 0.6, 0.9, 1.0], inf), \dur, 1/4, \midinote, 92, \dura,  0.12, \out, ~percBus, \group, ~mainGrp)
 ).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\tri,Pbind(\instrument, \tri,  \dur, 16,\amp, 0.02, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 2, \metal, 1.003,\out, ~percBus)
+Pdef(\tri, Pbind(\instrument, \tri,  \dur, 16,\amp, 0.02, \midinote, Pfunc({~cmp[\bass][\seq].v+72}),\dura, 2, \metal, 1.003,\out, ~percBus, \group, ~mainGrp)
 ).quant_(~tempoClock.beatsPerBar);
 
 ~perc = {|play|
@@ -449,14 +455,19 @@ Pdef(\pad, Pmono( \pad,
 	\dur, 1,
 	\amp, Pfunc({~cmp[\pad][\amp]}),
 	\f, Pfunc({~cmp[\bass][\seq].offset(~cmp[\pad][\off])}),
-	\out, ~masterBus
+	\out, ~masterBus,
+	\sigBufNum, ~config[\pad][\bufSignal].bufnum,
+	\shapeBufNum,	~config[\pad][\bufShaper].bufnum,
+	\group, ~mainGrp
 )).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\vocals, Pbind(\instrument, \vocals,
 	\buf, Pfunc({~vocals[~cmp[\vocals][\samp]].choose.bufnum}),
 	\amp, Pfunc({~cmp[\vocals][\amp]}),
-	\rate, 0.8,
+	\rate, Pfunc({0.7*(~cmp[\bass][\seq].v-27).midiratio}),
 	\dur, 16,
+	\out, ~masterBus,
+	\group, ~mainGrp
 )).quant_(~tempoClock.beatsPerBar);
 
 PdefAllGui();
@@ -501,7 +512,9 @@ PdefAllGui();
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////// test area ///////////////////////////////
 //////////////////////////////////////////////////////////////////////////
-~cmp[\vocals][\samp].postln
+~apc.update
+~makeBuffers.value
+~vocals.keys
 ~cmp[\perc][\kick][\amp].linlin(0.01,2,0,127).asInteger
 ~vocal = Synth(\vocals,[\buf, ~vocals[\being][0].bufnum, \amp, 1]);
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);
@@ -580,3 +593,13 @@ r.stop
 {|v|["d",v].postln}.value(4)
 
 MIDIClient.sources.at(0).uid
+
+~vpath = PathName(thisProcess.nowExecutingPath).parentPath++"vocals/";
+	~vocals = Dictionary.new;
+	PathName(~vpath).entries.do{
+		arg file;
+		var key = file.fileName.split($-)[0].asSymbol;
+		var buf = Buffer.read(s, file.fullPath);
+		if (~vocals[key].isNil) {~vocals.add(key -> [])};
+		~vocals[key] = ~vocals[key].add(buf);
+	};
