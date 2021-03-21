@@ -22,6 +22,7 @@ ServerQuit.removeAll;
 	~reverbBus = Bus.audio(s,2);
 	~reverbTomBus = Bus.audio(s,2);
 	~percBus = Bus.audio(s,2);
+	~wobbleBus = Bus.audio(s,2);
 	~masterBus = Bus.audio(s,2);
 	~emptyInBus = Bus.audio(s,2);
 
@@ -57,13 +58,15 @@ ServerQuit.removeAll;
 };
 ServerTree.add(~makeNodes);
 ServerBoot.add(~makeBusses);
-ServerBoot.add(~makeBuffers);
+ServerTree.add(~makeBuffers);
 ServerBoot.add({s.plotTree});
+
 ~cleanup = {
 	s.newBusAllocators;
 	ServerBoot.removeAll;
 	ServerTree.removeAll;
 	ServerQuit.removeAll;
+	CmdPeriod.removeAll;
 	"cleanup".postln;
 };
 
@@ -248,6 +251,34 @@ ServerQuit.add(~cleanup);
 		Out.ar(out, sig*amp);
 	}).add;
 
+	//https://sccode.org/1-5cS
+	SynthDef(\wobble, {
+		arg out=0, wflo=1, wfhi=6, decay=0, gate=1, wfmax=8500, amp=0.5, freq, iphase;
+		var env = Linen.kr(gate, releaseTime: 0.01, doneAction: Done.freeSelf);
+		var son = MoogVCF.ar(
+			in: (
+				Pulse.ar([freq * 0.98, freq], mul:0.5) +
+				PinkNoise.ar(LFNoise0.ar(2).range(0, 1.0)) +
+				Saw.ar([freq, freq * 1.025], mul:2)
+			).clip2(0.5),
+			fco: LFCub.kr(
+				freq:LFPulse.kr(0.25, iphase, width: 0.25).range(
+					wflo, wfhi) ).exprange(40, wfmax),
+			res: 0.4,
+			mul:2
+		);
+		Out.ar(out, son * env * amp);
+	}).add;
+
+	//https://sccode.org/1-5cS
+	SynthDef(\wobbleDelay, { | out, in, wet = 0.4 |
+		var input = In.ar(in,2);
+		var rev = Greyhole.ar(input * wet,
+			delayTime:0.5, feedback:0.5, diff:0.4,
+			damp:0.5, modDepth:0.8, modFreq:0.3);
+		Out.ar(out, input + rev);
+	}).add;
+
 	s.sync;
 
 	"synths created".postln;
@@ -271,6 +302,13 @@ ServerQuit.add(~cleanup);
 		~config[key][\serum].readProgram(~pathData++key++"_serum.fxp");
 		~config[key][\eq].readProgram(~pathData++key++"_eq.fxp");
 	};
+	// todo some execution order issue here - same value for every key
+	// ~loadParams = {arg key;
+	// 	~config[key][\serumParams].keys.do{arg pkey;
+	// 		var ctr=1;
+	// 		Routine({~config[key][\serum].get(pkey,{arg f;ctr.wait;ctr=ctr+1; ~config[key][\serumParams][pkey] = f;[key, pkey,f].postln}); }).play;
+	// 	}
+	// };
 
 	//pad
 	~config[\pad] = ();
@@ -286,6 +324,7 @@ ServerQuit.add(~cleanup);
 	~config[\drivingBase] = ();
 	~config[\drivingBase][\synth] = Synth(\drivingBase, [\out, ~masterBus, \sideChain, ~reverbBus, \in, ~emptyInBus], ~mainGrp);
 	~config[\drivingBase][\serum] = VSTPluginController(~config[\drivingBase][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\drivingBase][\serumParams]= (Dist_Drv:0.103, Dist_BW:0.352, Dist_Freq:0.462);
 	~config[\drivingBase][\eq] = VSTPluginController(~config[\drivingBase][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
 	~config[\lead] = ();
@@ -298,6 +337,8 @@ ServerQuit.add(~cleanup);
 	~config[\leadMono][\serum] = VSTPluginController(~config[\leadMono][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\leadMono][\eq] = VSTPluginController(~config[\leadMono][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
+	~config[\wobble]= ();
+	~config[\wobble][\delay] = Synth(\wobbleDelay, [\out, ~masterBus, \in, ~wobbleBus]);
 	s.sync;
 
 	~apc = AkaiAPC40();
@@ -305,6 +346,9 @@ ServerQuit.add(~cleanup);
 	~load.(\drivingBase);
 	~load.(\lead);
 	~load.(\leadMono);
+	s.sync;
+	// ~loadParams.(\drivingBase);
+
 
 	~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
 	~reverbTomSynth.set(\mix, 0.3, \room, 0.3, \damp, 1);
@@ -337,6 +381,8 @@ FreqScope.new(400, 200, busNum:0, server: s);
 ~cmp[\pad] = (off: 12, amp: 0.3);
 // sequence
 (
+~freeAll= {Pdef(\compose).stop;Pdef(\kick).stop;Pdef(\tom).stop;Pdef(\clap).stop;Pdef(\hat).stop;Pdef(\tri).stop;Pdef(\drivingBase).stop;Pdef(\lead).stop;Pdef(\leadMono).stop;Pdef(\vocals).stop;Pdef(\wobble).stop;}
+CmdPeriod.add(~freeAll);
 ~tempoClock.tempo = 123/60;
 ~cmp = (
 	perc:(
@@ -347,12 +393,14 @@ FreqScope.new(400, 200, busNum:0, server: s);
 	),
 	// todo tune these changes better - some changes are better than others
 	bass:(seq: Seqr[29, 31, 32, 35, 33, 29, 27, 28, 31, 29, 27, 31, 27, 29, 28, 31], amp: 0.9),
-	lead:(off: 24, amp: 0.3),
-	leadMono:(off: 24, amp: 0.3),
-	pad:(off: 12, amp: 0.2),
-	vocals:(samp: \being, amp: 1)
+	lead:(off: 24, amp: 0.0),
+	leadMono:(off: 24, amp: 0.0),
+	pad:(off: 12, amp: 0.0),
+	vocals:(samp: \being, amp: 0),
+	wobble:(amp: 0.1)
 );
-
+~cmp[\bass][\seq].next;
+~cmp[\perc][\clap][\idx].next;
 Pdef(\compose, Pmono(
 	\dummy,
 	\baseNote, Pfunc({~cmp[\bass][\seq].next}),
@@ -415,6 +463,7 @@ Pdef(\tri, Pbind(\instrument, \tri,  \dur, 16,\amp, 0.02, \midinote, Pfunc({~cmp
 
 // base low range (30-150) (23-50)
 //https://www.youtube.com/watch?v=hR4W2KyPiTY&t=1155s
+// eefects to add, delay, move distortion curve, hyper + detune
 Pdef(\drivingBase, Ppar([
 	// driving base
 	Pbind(\type, \vst_midi,
@@ -470,6 +519,20 @@ Pdef(\vocals, Pbind(\instrument, \vocals,
 	\group, ~mainGrp
 )).quant_(~tempoClock.beatsPerBar);
 
+Pdef(\wobble,Pbind(
+	\instrument, \wobble,
+	\legato, 0.98,
+	\out, ~wobbleBus,
+	\dur, Pseq([8, Rest(8)],inf),
+	\amp, Pfunc({~cmp[\wobble][\amp]}),
+	\wflo, 1,
+	\wfhi, 2,
+	\wfmax, 1000,
+	\iphase, 0.25,
+	\degree, Pseq([-2,0,2,2], inf),
+	\octave, 2,
+)).quant_(~tempoClock.beatsPerBar);
+
 PdefAllGui();
 
 // perc
@@ -492,6 +555,8 @@ PdefAllGui();
 ~apc.addNoteIn(\track2,~apc.togPdef(\drivingBase));
 ~apc.addNoteOut(\track2, {if (Pdef(\drivingBase).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2)});
+~apc.addCtlIn(\k2,{~config[\drivingBase][\serum].set(\Dist_Freq, ~val.linlin(0,127,0.3,0.8))});
+
 ~apc.addNoteIn(\track3,~apc.togPdef(\lead));
 ~apc.addNoteOut(\track3, { if (Pdef(\lead).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2)});
@@ -504,6 +569,9 @@ PdefAllGui();
 ~apc.addNoteIn(\track6,~apc.togPdef(\vocals));
 ~apc.addNoteOut(\track6, {if (Pdef(\vocals).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s6,{~cmp[\vocals][\amp] = ~val.linexp(0, 127, 0.01, 2)});
+~apc.addNoteIn(\track7,~apc.togPdef(\wobble));
+~apc.addNoteOut(\track7, {if (Pdef(\wobble).isPlaying) {\on}{\off}});
+~apc.addCtlIn(\s7,{~cmp[\wobble][\amp] = ~val.linexp(0, 127, 0.01, 0.8)});
 ~apc.addNoteIn(\sceneMstr,~apc.togPdef(\compose));
 ~apc.addNoteOut(\sceneMstr, { if (Pdef(\compose).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\master,{~masterGain.set(\amp, ~val.linexp(0, 127, 0.01, 1.2)) });
@@ -512,9 +580,17 @@ PdefAllGui();
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////// test area ///////////////////////////////
 //////////////////////////////////////////////////////////////////////////
+Platform.userExtensionDir
+
 ~apc.update
 ~makeBuffers.value
 ~vocals.keys
+~config[\drivingBase][\serum].set(\Dist_Drv, 0.5);
+~config[\drivingBase][\serum].set(\Dist_BW, 0.7);
+~config[\drivingBase][\serum].set(\Dist_Freq, 0.56);
+~config[\drivingBase][\serum].get(\Dist_Drv,{arg f; f.postln;});
+~config[\drivingBase][\serum].get(\Dist_BW,{arg f; f.postln;});
+~config[\drivingBase][\serum].get(\Dist_Freq,{arg f; f.postln;});
 ~cmp[\perc][\kick][\amp].linlin(0.01,2,0,127).asInteger
 ~vocal = Synth(\vocals,[\buf, ~vocals[\being][0].bufnum, \amp, 1]);
 ~arp = Synth(\arp,[\midinote, 65, \amp, 0.5, \filterRatio:4, \spread:5, \dura, 0.25]);

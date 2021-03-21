@@ -3,7 +3,7 @@
 ( // if you like bass wobbles
 
 SynthDef(\wobble, {
-	arg out=0, wflo=1, wfhi=6, decay=0, gate=1, wfmax=8500, freq, iphase;
+	arg out=0, wflo=1, wfhi=6, decay=0, gate=1, wfmax=8500, amp=0.5, freq, iphase;
 	var env = Linen.kr(gate, releaseTime: 0.01, doneAction: Done.freeSelf);
 	var son = MoogVCF.ar(
 		in: (
@@ -17,7 +17,7 @@ SynthDef(\wobble, {
 		res: 0.4,
 		mul:2
 	);
-	Out.ar(out, son * env);
+	Out.ar(out, son * env * amp);
 }).add;
 
 b = Bus.audio(s,2);
@@ -30,14 +30,31 @@ SynthDef("delayBus", { | outBus = 0, inBus, wet = 0.4 |
     Out.ar(outBus, input + rev);
 }).play(s, [\inBus,b]);
 
-Pbind(
+// Pdef(\wobble,Pbind(
+// 	\instrument, \wobble,
+// 	\legato, 0.98, \out, b,
+// 	\dur, 1,
+// 	\amp, 0.1,
+// 	\wflo, Prand([1,2,4],inf),
+// 	\wfhi, Prand([4,6,8],inf),
+// 	\wfmax, Pseq([4,6,3,1,9]*500,inf),
+// 	\iphase, Prand([0,0.25,0.5,0.75], inf),
+// 	\degree, Pseq([2,0,-2,-2], 1),
+// 	\octave, 2,
+// )).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\wobble,Pbind(
 	\instrument, \wobble,
 	\legato, 0.98, \out, b,
-	\dur, 4,
-	\wflo, Prand([1,2,3],inf),
-	\wfhi, Prand([4,6,8],inf),
-	\wfmax, Pseq([4,6,3,1,9]*500,inf),
-	\iphase, Prand([0,0.25,0.5,0.75], inf),
-	\degree, Pseq([2,0,-2,-2], 8), \octave, 2,
-).play;
+	\dur, 1,
+	\amp, 0.1,
+	\wflo, 1,
+	\wfhi, 2,
+	\wfmax, 1000,
+	\iphase, 0.25,
+	\degree, Pseq([-2,0,2,2], 1),
+	\octave, 2,
+)).quant_(~tempoClock.beatsPerBar);
 )
+Pdef(\wobble).play;
+Pdef(\wobble).stop;
