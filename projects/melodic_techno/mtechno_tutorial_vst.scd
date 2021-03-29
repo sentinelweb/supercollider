@@ -25,6 +25,7 @@ ServerQuit.removeAll;
 	~wobbleBus = Bus.audio(s,2);
 	~masterBus = Bus.audio(s,2);
 	~emptyInBus = Bus.audio(s,2);
+	~breakBus = Bus.audio(s,2);
 
 	("MadeBus:"++~masterBus).postln;
 	s.sync;
@@ -162,7 +163,7 @@ ServerQuit.add(~cleanup);
 	}).add;
 	// https://blog.rumblesan.com/post/53271713909/drum-sounds-in-supercollider-part-2
 
-	SynthDef('clap', {
+	SynthDef(\clap, {
 		arg out=0,dura = 1,hit=50,freq=3000,wid=2000, amp=1;
 		var claposc, clapnoise, clapoutput, clap_env, hit_osc, hit_env;
 
@@ -212,7 +213,7 @@ ServerQuit.add(~cleanup);
 
 	SynthDef(\pad, { arg out, sigBufNum, shapeBufNum, f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
 		var sig, freqs;
-		freqs = (f+[0,5,7]).midicps;
+		freqs = (f+[0,5,7]).midicps;// todo use Ref
 		freqs.postln;
 		sig = BPF.ar(
 			Shaper.ar(shapeBufNum, Osc.ar(sigBufNum, freqs, mul:1/freqs.size)),
@@ -381,7 +382,21 @@ FreqScope.new(400, 200, busNum:0, server: s);
 ~cmp[\pad] = (off: 12, amp: 0.3);
 // sequence
 (
-~freeAll= {Pdef(\compose).stop;Pdef(\kick).stop;Pdef(\tom).stop;Pdef(\clap).stop;Pdef(\hat).stop;Pdef(\tri).stop;Pdef(\drivingBase).stop;Pdef(\lead).stop;Pdef(\leadMono).stop;Pdef(\vocals).stop;Pdef(\wobble).stop;}
+~freeAll={
+	Pdef(\compose).stop;
+	Pdef(\kick).stop;
+	Pdef(\tom).stop;
+	Pdef(\clap).stop;
+	Pdef(\hat).stop;
+	Pdef(\tri).stop;
+	Pdef(\drivingBase).stop;
+	Pdef(\lead).stop;
+	Pdef(\leadMono).stop;
+	Pdef(\vocals).stop;
+	Pdef(\wobble).stop;
+	Pdef(\pad).stop;
+	~apc.update;
+};
 CmdPeriod.add(~freeAll);
 ~tempoClock.tempo = 123/60;
 ~cmp = (
@@ -486,8 +501,7 @@ Pdef(\lead, Ppar([
 		\midinote, Pseq([1, 7, 8], inf) + Pfunc({~cmp[\bass][\seq].offset(~cmp[\lead][\off])})
 	),
 	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, Pfunc({~cmp[\lead][\amp]}))
-])
-).quant_(~tempoClock.beatsPerBar);
+])).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\leadMono,  Ppar([
 	Pbind(\type, \vst_midi,
@@ -525,13 +539,69 @@ Pdef(\wobble,Pbind(
 	\out, ~wobbleBus,
 	\dur, Pseq([8, Rest(8)],inf),
 	\amp, Pfunc({~cmp[\wobble][\amp]}),
-	\wflo, 1,
-	\wfhi, 2,
+	\wflo, Prand([2,3,4], inf),
+	\wfhi, Prand([2,4,6,8], inf),
 	\wfmax, 1000,
-	\iphase, 0.25,
-	\degree, Pseq([-2,0,2,2], inf),
-	\octave, 2,
+	\iphase, 0.0,
+	\degree, Pseq([-2,0,2,2], inf)+ Pfunc({~cmp[\bass][\seq].v-27}) ,
+	\octave, 3,
 )).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\breakIntro, Ppar([
+	Pbind(\instrument, \clap, \amp, 3, \hit, 30,\midinote, 110, \wid, 200,
+		\dura,  1,
+		\group, ~mainGrp, \out, ~reverbTomBus,
+		\dur, Pseq([1,1,1,1]/4)),
+
+])).quant_(~tempoClock.beatsPerBar);
+
+Pdef(\breakLead, Ppar([
+	Pbind(\type, \vst_midi,
+		\vst, ~config[\lead][\serum], // the VSTPluginController instance
+		\midicmd, \noteOn,
+		\dur, Pseq([1,1,1,1,Rest(28)]/4,inf),
+		\chan, 0,
+		\midinote, Pseq([1, 7, 8], inf) + Pfunc({~cmp[\bass][\seq].offset(~cmp[\lead][\off])})
+	),
+	Pbind(\type, \set, \id, ~config[\lead][\synth], \amp, Pfunc({~cmp[\lead][\amp]*3}))
+])).quant_(~tempoClock.beatsPerBar);
+
+~gotoBreak = {// need to stop on the 4th beat
+	~perc.value(false);
+	Pdef(\drivingBase).stop;
+	Pdef(\lead).stop;
+	Pdef(\leadMono).stop;
+	Pdef(\vocals).stop;
+	Pdef(\wobble).stop;
+	~cmp[\pad][\amp] = 0.4;
+	Pdef(\pad).play;
+
+	Pdef(\breakIntro).play;
+	Pdef(\breakLead).play;
+	~config[\lead][\serum].set(\Dly_Wet, 0.6);
+	~config[\lead][\serum].set("Verb Wet".asSymbol, 0.4);
+	~apc.update;
+	"goto break".postln;
+};
+
+~exitBreak = {// need to stop on the 4th beat
+	~perc.value(true);
+	Pdef(\drivingBase).play;
+	Pdef(\lead).play;
+	Pdef(\leadMono).stop;
+	Pdef(\vocals).stop;
+	Pdef(\wobble).stop;
+	~cmp[\pad][\amp] = 0.2;
+	Pdef(\pad).stop;
+
+	Pdef(\breakIntro).stop;
+	Pdef(\breakLead).stop;
+	~config[\lead][\serum].set(\Dly_Wet, 0);
+	~config[\lead][\serum].set("Verb Wet".asSymbol, 0);
+	~apc.update;
+	"exit break".postln;
+};
+
 
 PdefAllGui();
 
@@ -571,9 +641,13 @@ PdefAllGui();
 ~apc.addCtlIn(\s6,{~cmp[\vocals][\amp] = ~val.linexp(0, 127, 0.01, 2)});
 ~apc.addNoteIn(\track7,~apc.togPdef(\wobble));
 ~apc.addNoteOut(\track7, {if (Pdef(\wobble).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s7,{~cmp[\wobble][\amp] = ~val.linexp(0, 127, 0.01, 0.8)});
+~apc.addCtlIn(\s7,{~cmp[\wobble][\amp] = ~val.linexp(0, 127, 0.01, 2)});
+
+~apc.addNoteIn(\scene1, {~gotoBreak.value()});
+~apc.addNoteIn(\scene2, {~exitBreak.value()});
 ~apc.addNoteIn(\sceneMstr,~apc.togPdef(\compose));
 ~apc.addNoteOut(\sceneMstr, { if (Pdef(\compose).isPlaying) {\on}{\off}});
+
 ~apc.addCtlIn(\master,{~masterGain.set(\amp, ~val.linexp(0, 127, 0.01, 1.2)) });
 
 )
