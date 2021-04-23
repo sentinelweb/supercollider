@@ -26,6 +26,7 @@ ServerQuit.removeAll;
 	~masterBus = Bus.audio(s,2);
 	~emptyInBus = Bus.audio(s,2);
 	~breakBus = Bus.audio(s,2);
+	~vocalsBus = Bus.audio(s,2);
 
 	("MadeBus:"++~masterBus).postln;
 	s.sync;
@@ -211,6 +212,15 @@ ServerQuit.add(~cleanup);
 		Out.ar(out, sig);
 	}).add;
 
+	SynthDef(\vocalEffect, {arg in, out, pitch=1;
+		var sig, chain;
+		sig = In.ar(in,2);//SinOsc.ar(440);
+		chain = FFT(LocalBuf(2048), sig);
+		chain = PV_MagShift(chain, pitch );
+		sig = IFFT(chain).dup;
+		Out.ar(out, sig);
+	}).add;
+
 	SynthDef(\pad, { arg out, sigBufNum, shapeBufNum, f=48, amp=1, rq=2, lfo_freq=5, lfo_wid=20;
 		var sig, freqs;
 		freqs = (f+[0,5,7]).midicps;// todo use Ref
@@ -337,6 +347,9 @@ ServerQuit.add(~cleanup);
 	~config[\leadMono][\synth] = Synth(\leadMono, [\out, ~masterBus, \in, ~emptyInBus ], ~mainGrp);
 	~config[\leadMono][\serum] = VSTPluginController(~config[\leadMono][\synth],\serum).open("Serum", verbose: true,  editor:true);
 	~config[\leadMono][\eq] = VSTPluginController(~config[\leadMono][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
+
+	~config[\vocals]= ();
+	~config[\vocals][\vocalEffect] = Synth(\vocalEffect, [\out, ~masterBus, \in, ~vocalsBus], ~reverbGrp);
 
 	~config[\wobble]= ();
 	~config[\wobble][\delay] = Synth(\wobbleDelay, [\out, ~masterBus, \in, ~wobbleBus]);
@@ -529,7 +542,7 @@ Pdef(\vocals, Pbind(\instrument, \vocals,
 	\amp, Pfunc({~cmp[\vocals][\amp]}),
 	\rate, Pfunc({0.7*(~cmp[\bass][\seq].v-27).midiratio}),
 	\dur, 16,
-	\out, ~masterBus,
+	\out, ~vocalsBus,
 	\group, ~mainGrp
 )).quant_(~tempoClock.beatsPerBar);
 
@@ -630,15 +643,21 @@ PdefAllGui();
 ~apc.addNoteIn(\track3,~apc.togPdef(\lead));
 ~apc.addNoteOut(\track3, { if (Pdef(\lead).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2)});
+~apc.addCtlIn(\k3,{~config[\lead][\serum].set("Fil Cutoff".asSymbol, ~val.linlin(0,127,0.05,0.4))});
+
 ~apc.addNoteIn(\track4,~apc.togPdef(\leadMono));
 ~apc.addNoteOut(\track4, {if (Pdef(\leadMono).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s4,{~cmp[\leadMono][\amp] = ~val.linexp(0,127,0.01,1.2)});
+
 ~apc.addNoteIn(\track5,~apc.togPdef(\pad));
 ~apc.addNoteOut(\track5, {if (Pdef(\pad).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s5,{~cmp[\pad][\amp] = ~val.linexp(0, 127, 0.01, 1.2)});
+
 ~apc.addNoteIn(\track6,~apc.togPdef(\vocals));
 ~apc.addNoteOut(\track6, {if (Pdef(\vocals).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s6,{~cmp[\vocals][\amp] = ~val.linexp(0, 127, 0.01, 2)});
+~apc.addCtlIn(\s6,{~cmp[\vocals][\amp] = ~val.linexp(0, 127, 0.01, 10)});
+~apc.addCtlIn(\k6,{~config[\vocals][\vocalEffect].set(\pitch,~val.linexp(0, 127, 0.75,2))});
+
 ~apc.addNoteIn(\track7,~apc.togPdef(\wobble));
 ~apc.addNoteOut(\track7, {if (Pdef(\wobble).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s7,{~cmp[\wobble][\amp] = ~val.linexp(0, 127, 0.01, 2)});
