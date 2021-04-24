@@ -212,12 +212,15 @@ ServerQuit.add(~cleanup);
 		Out.ar(out, sig);
 	}).add;
 
-	SynthDef(\vocalEffect, {arg in, out, pitch=1;
-		var sig, chain;
-		sig = In.ar(in,2);//SinOsc.ar(440);
+	SynthDef(\vocalEffect, {arg in, out, pitch=1, depth=0.001, oscTempoRatio=2, amp=0.5;
+		var sig, chain, maxDelayTime=0.5;
+		sig = In.ar(in,2);
 		chain = FFT(LocalBuf(2048), sig);
 		chain = PV_MagShift(chain, pitch );
 		sig = IFFT(chain).dup;
+		//chorus
+		sig = sig + DelayL.ar(sig, maxDelayTime, SinOsc.ar(oscTempoRatio * ~tempoClock.tempo, add:1.0) * depth);
+		sig = Compander.ar(sig, sig, thresh: amp, slopeBelow: 0.5, slopeAbove: 0.5, clampTime:  0.01, relaxTime:  0.01);
 		Out.ar(out, sig);
 	}).add;
 
@@ -314,12 +317,15 @@ ServerQuit.add(~cleanup);
 		~config[key][\eq].readProgram(~pathData++key++"_eq.fxp");
 	};
 	// todo some execution order issue here - same value for every key
-	// ~loadParams = {arg key;
-	// 	~config[key][\serumParams].keys.do{arg pkey;
-	// 		var ctr=1;
-	// 		Routine({~config[key][\serum].get(pkey,{arg f;ctr.wait;ctr=ctr+1; ~config[key][\serumParams][pkey] = f;[key, pkey,f].postln}); }).play;
-	// 	}
-	// };
+	~loadParams = {arg key;
+		~config[key][\serumParams].keys.do{arg pkey;
+			~config[key][\serum].get(pkey,{arg f;
+				var initial = ~config[key][\serumParams][pkey];
+				~config[key][\serumParams][pkey] = f;
+				if (f!=initial) {[key, pkey,f].postln;}
+			});
+		}
+	};
 
 	//pad
 	~config[\pad] = ();
@@ -341,6 +347,7 @@ ServerQuit.add(~cleanup);
 	~config[\lead] = ();
 	~config[\lead][\synth] = Synth(\lead, [\out, ~masterBus, \in, ~emptyInBus], ~mainGrp);
 	~config[\lead][\serum] = VSTPluginController(~config[\lead][\synth],\serum).open("Serum", verbose: true,  editor:true);
+	~config[\lead][\serumParams] = ('Fil Cutoff':0.103);
 	~config[\lead][\eq] = VSTPluginController(~config[\lead][\synth], \eq).open("/Library/Audio/Plug-Ins/VST3/TDR Nova.vst3", verbose: true,  editor:true);
 
 	~config[\leadMono] = ();
@@ -361,7 +368,8 @@ ServerQuit.add(~cleanup);
 	~load.(\lead);
 	~load.(\leadMono);
 	s.sync;
-	// ~loadParams.(\drivingBase);
+	~loadParams.(\drivingBase);
+	~loadParams.(\lead);
 
 
 	~reverbSynth.set(\mix, 0.5, \room, 0.5, \damp, 1);
@@ -383,6 +391,9 @@ ServerTree.add(~makeConfig);
 
 ~openEditors.(\leadMono);
 ~save.(\leadMono);
+
+~config[\vocals][\vocalEffect].free;
+~config[\vocals][\vocalEffect] = Synth(\vocalEffect, [\out, ~masterBus, \in, ~vocalsBus], ~reverbGrp);
 
 
 FreqScope.new(400, 200, busNum:0, server: s);
@@ -424,7 +435,7 @@ CmdPeriod.add(~freeAll);
 	lead:(off: 24, amp: 0.0),
 	leadMono:(off: 24, amp: 0.0),
 	pad:(off: 12, amp: 0.0),
-	vocals:(samp: \being, amp: 0),
+	vocals:(samp: \being/*, amp: 0*/),
 	wobble:(amp: 0.1)
 );
 ~cmp[\bass][\seq].next;
@@ -539,7 +550,7 @@ Pdef(\pad, Pmono( \pad,
 
 Pdef(\vocals, Pbind(\instrument, \vocals,
 	\buf, Pfunc({~vocals[~cmp[\vocals][\samp]].choose.bufnum}),
-	\amp, Pfunc({~cmp[\vocals][\amp]}),
+	//\amp, Pfunc({~cmp[\vocals][\amp]}),
 	\rate, Pfunc({0.7*(~cmp[\bass][\seq].v-27).midiratio}),
 	\dur, 16,
 	\out, ~vocalsBus,
@@ -638,12 +649,12 @@ PdefAllGui();
 ~apc.addNoteIn(\track2,~apc.togPdef(\drivingBase));
 ~apc.addNoteOut(\track2, {if (Pdef(\drivingBase).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s2,{~cmp[\bass][\amp] = ~val.linexp(0,127,0.01,1.2)});
-~apc.addCtlIn(\k2,{~config[\drivingBase][\serum].set(\Dist_Freq, ~val.linlin(0,127,0.3,0.8))});
+~apc.addCtlIn(\k2,{~config[\drivingBase][\serum].set(\Dist_Freq, ~val.linlin(0,127,0.3,0.8));~loadParams.(\drivingBase);});
 
 ~apc.addNoteIn(\track3,~apc.togPdef(\lead));
 ~apc.addNoteOut(\track3, { if (Pdef(\lead).isPlaying) {\on}{\off}});
 ~apc.addCtlIn(\s3,{~cmp[\lead][\amp] = ~val.linexp(0,127,0.01,1.2)});
-~apc.addCtlIn(\k3,{~config[\lead][\serum].set("Fil Cutoff".asSymbol, ~val.linlin(0,127,0.05,0.4))});
+~apc.addCtlIn(\k3,{~config[\lead][\serum].set("Fil Cutoff".asSymbol, ~val.linlin(0,127,0.05,0.4));~loadParams.(\lead);});
 
 ~apc.addNoteIn(\track4,~apc.togPdef(\leadMono));
 ~apc.addNoteOut(\track4, {if (Pdef(\leadMono).isPlaying) {\on}{\off}});
@@ -655,8 +666,13 @@ PdefAllGui();
 
 ~apc.addNoteIn(\track6,~apc.togPdef(\vocals));
 ~apc.addNoteOut(\track6, {if (Pdef(\vocals).isPlaying) {\on}{\off}});
-~apc.addCtlIn(\s6,{~cmp[\vocals][\amp] = ~val.linexp(0, 127, 0.01, 10)});
-~apc.addCtlIn(\k6,{~config[\vocals][\vocalEffect].set(\pitch,~val.linexp(0, 127, 0.75,2))});
+~apc.addNoteIn(\grid61, {~config[\vocals][\vocalEffect].set(\oscTempoRatio, 1);[\oscTempoRatio,1].postln});
+~apc.addNoteIn(\grid62, {~config[\vocals][\vocalEffect].set(\oscTempoRatio, 2);[\oscTempoRatio,2].postln});
+~apc.addNoteIn(\grid63, {~config[\vocals][\vocalEffect].set(\oscTempoRatio, 4);[\oscTempoRatio,4].postln});
+~apc.addNoteIn(\grid64, {~config[\vocals][\vocalEffect].set(\oscTempoRatio, 8);[\oscTempoRatio,8].postln});
+~apc.addCtlIn(\s6,{~config[\vocals][\vocalEffect].set(\amp, ~val.linexp(0, 127, 0.01, 2))});
+~apc.addCtlIn(\k6,{~config[\vocals][\vocalEffect].set(\pitch,~val.linexp(0, 127, 0.75, 2))});
+~apc.addCtlIn(\sk6,{~config[\vocals][\vocalEffect].set(\depth,~val.linexp(0, 127, 0.0001, 0.01))});
 
 ~apc.addNoteIn(\track7,~apc.togPdef(\wobble));
 ~apc.addNoteOut(\track7, {if (Pdef(\wobble).isPlaying) {\on}{\off}});
@@ -772,3 +788,16 @@ MIDIClient.sources.at(0).uid
 		if (~vocals[key].isNil) {~vocals.add(key -> [])};
 		~vocals[key] = ~vocals[key].add(buf);
 	};
+~config[\vocals][\vocalEffect].set(\depth, 0.004);
+~config[\vocals][\vocalEffect].set(\oscTempoRatio, 2);
+SynthDef(\expandr, {arg inAmp=1, outAmp=1;
+	var sig = SinOsc.ar(440, mul:inAmp);
+	sig = Compander.ar(sig, sig,thresh: outAmp,slopeBelow: 0.1, slopeAbove: 0.1, clampTime:  0.2, relaxTime:  0.2);
+	Out.ar(0, sig);
+}).add;
+x=Synth(\expandr);
+x.set(\inAmp, 0.1)
+x.play;
+x.free;
+s.plotTree
+	
