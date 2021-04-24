@@ -301,6 +301,8 @@ ServerQuit.add(~cleanup);
 	VSTPlugin.search(verbose:true);
 	s.sync;
 	~config = ();
+	~oscTarget = NetAddr.new("127.0.0.1", 1239);
+	~sendOsc = {|a/*symbol*/,b| ~oscTarget.sendMsg(a,b);}
 
 	~openEditors = {arg key;
 		~config[key][\serum].editor;
@@ -449,7 +451,18 @@ Pdef(\compose, Pmono(
 	\dur, 16
 )).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\kick, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\kick][\amp]}), \dur, 1, \midinote, 29, \dura, 0.6, \metal, 1.6, \makeup_gain, 1.3,\group, ~mainGrp, \out, ~reverbBus)
+Pdef(\kick, Pbind(
+	\instrument, \kick,
+	\amp, Pfunc({~cmp[\perc][\kick][\amp]}),
+	\dur, 1,
+	\midinote, 29,
+	\dura, 0.6,
+	\metal, 1.6,
+	\makeup_gain, 1.3,
+	\group, ~mainGrp,
+	\out, ~reverbBus,
+	\osc, Pfunc({~sendOsc.(\kick, true)})
+)
 ).quant_(~tempoClock.beatsPerBar);
 
 Pdef(\tom, Pbind(\instrument, \kick, \amp, Pfunc({~cmp[\perc][\tom][\amp]}), \dur, Pseq([Rest(0)+5,1,1, Rest(0)+1]/2, inf), \midinote, Pseq([0, 35, 40, 0], inf), \dura, 0.3, \metal, 2.5,\group, ~mainGrp, \out, ~reverbTomBus)
@@ -800,4 +813,10 @@ x.set(\inAmp, 0.1)
 x.play;
 x.free;
 s.plotTree
-	
+
+b = NetAddr.new("127.0.0.1", 1239);    // create the NetAddr
+b.sendMsg("/hello", 3);
+
+~sendOsc.("\kick",2)
+x = {|a,b| ~oscTarget.sendMsg(a,b);}
+x.(\fff,"ccc22");
