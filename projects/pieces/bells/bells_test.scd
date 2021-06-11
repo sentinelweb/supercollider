@@ -110,10 +110,10 @@ Pbind(
 )
 
 //////////////////////////////////////////////////////////
-IDEAS
-Make one bell go for 5 mins and have a warble with the breath rhythm
+///IDEAS
+//Make one bell go for 5 mins and have a warble with the breath rhythm
 
-https://sccode.org/1-4VL
+//https://sccode.org/1-4VL
 //«Tibetan prayer bells» by wondersluyter
 (
 SynthDef(\prayer_bell, { |outbus, t_trig = 1, sing_switch = 0, freq = 2434, amp = 0.5, decayscale = 1, lag = 10, i_doneAction = 0, gate=1|
