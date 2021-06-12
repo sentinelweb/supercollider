@@ -12,6 +12,11 @@ s.boot;
 ServerOptions.inDevices;
 ServerOptions.outDevices;
 ~thereminBus = Bus.audio(s,2);
+
+MIDIdef.freeAll;
+MIDIClient.init;
+MIDIClient.sources;
+MIDIIn.connect(2, MIDIClient.sources.at(2));//MIDIEndPoint("USB Oxygen 8 v2", "USB Oxygen 8 v2")
 )
 
 // tools //////
@@ -24,8 +29,38 @@ SynthDef(\thereminInput, {
 	sig = In.ar(12,1) ! 2  * inamp;
 	Out.ar(out, sig);
 }).add;
+
+SynthDef(\ping, {
+	arg out=0, gate = 0, amp=0.5;
+	var sig;
+	sig = EnvGen.ar(Env.asr(0.01, 0.5, 0.01,curve: 'sin'), gate) * SinOsc.ar(440);
+	Out.ar(out, sig);
+}).add;
+
+MIDIdef.cc(\ccPing,{|val, ctnum, chan|
+	["\ccTheremin", val, ctnum, chan].postln;
+	c = switch (ctnum)
+	{25} {// record button (left)
+		if(~pingVal==1,{~pingVal=0},{~pingVal=1});
+		["pingval", ~pingVal].postln;
+		~ping.set(\gate,~pingVal);
+	}
+
+	{"unmapped:"+chan +":"+ ctnum + " -> "+val};
+});
+
 ~thereminInGrp = Group.new;
+(~thereminInput != nil).if { ~thereminInput.free;};
+~thereminInput = Synth(\thereminInput,[\out, ~thereminBus,\inamp, 1], ~thereminInGrp);
+(~ping != nil).if {~ping.free;};
+~ping = Synth(\ping,[\out, 0]);
 )
+
+//// commands
+~ping.set(\gate,1);
+~ping.set(\gate,0);
+~pingVal = 1;// for toggle;
+
 //////// inputs testing ////////////////////////
 { In.ar(2,[3]) }.play; // input 1
 { In.ar(2,[4]) }.play; // input 2

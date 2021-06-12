@@ -1,10 +1,9 @@
 //// init below first (code) /////////////
 (
 ~thereminEffectsGrp = Group.after(~thereminInGrp);
-~thereminInput = Synth(\thereminInput,[\out, ~thereminBus,\inamp, 1,\in, 3], ~thereminInGrp);
 ~thereminPitch = Synth(\thereminPitch,[\in, ~thereminBus, \out, 0], ~thereminEffectsGrp);
 ~thereminPitch.set(\tempo,125);
-~ping = Synth(\ping,[\out, 0], ~thereminEffectsGrp);
+
 //~thereminFollow = Synth(\thereminFollow,[\in,~thereminBus, \out, 0, \gain, 0.5], ~thereminEffectsGrp);
 )
 (
@@ -22,9 +21,6 @@
 ~thereminPitch.set(\pitchGrainSize, 0.001);
 ~thereminPitch.set(\transWidth, 0.05);
 ~thereminPitch.set(\clip, 0.4, \bpfSweepRatio, 50, \bpfRecipQ, 1000);
-~ping.set(\gate,1);
-~ping.set(\gate,0);
-~pingVal = 1;// for toggle;
 (
 
 //////// code ////////////////
@@ -41,8 +37,8 @@ SynthDef(\thereminPitch, {
 	sig = sig.clip2(clip) * clipamp / clip;
 	test = sig;test.scope;
 	//
-	freq=freq*pitchRatio/2;
-	sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
+	 freq=freq*pitchRatio;//2;
+	 sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
 	delay = HPF.ar(DelayL.ar(sig, 1, tempo / 60 * delayTempoRatio ), 100);
 	sig = XFade2.ar(sig, delay, -0.5) * gain;
 	sig = sig * EnvGen.ar(Env.asr(0.01, 0.5, 0.01,curve: 'sin'), LFPulse.ar(tempo / 60 * transRatio, width: transWidth));
@@ -116,11 +112,6 @@ MIDIdef.cc(\ccTheremin,{|val, ctnum, chan|
 	}
 	{24} {// > button (left)
 
-	}
-	{25} {// record button (left)
-		if(~pingVal==1,{~pingVal=0},{~pingVal=1});
-		~pingVal.postln;
-		~ping.set(\gate,~pingVal);
 	}
 
 	{"unmapped:"+chan +":"+ ctnum + " -> "+val};
