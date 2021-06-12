@@ -1,13 +1,16 @@
-
-
 // setup ///////////
 (
-Server.default.options.inDevice_("UMC404HD 192k");
-Server.default.options.outDevice_("Built-in Output");// UMC404HD 192k <- weird crackling ...q
+Server.default.options.inDevice_("TR-8S");
+Server.default.options.outDevice_("TR-8S");
+//Server.default.options.inDevice_("UMC404HD 192k");
+//Server.default.options.outDevice_("UMC404HD 192k");// weird clicking :(
+// Server.default.options.outDevice_("MacBook Pro Speakers");
+// Server.default.options.outDevice_("External Headphones");
 Server.default.options.blockSize = 512;
+Server.default.options.sampleRate = 44100;
 s.boot;
-// ServerOptions.inDevices;
- ServerOptions.outDevices;
+ServerOptions.inDevices;
+ServerOptions.outDevices;
 ~thereminBus = Bus.audio(s,2);
 )
 
@@ -16,10 +19,9 @@ s.plotTree
 // synths ///////////////
 (
 SynthDef(\thereminInput, {
-	arg inamp = 3, out = 0;
+	arg inamp = 3, out = 0;//in=3, // todo pass ref?
 	var sig;
-	sig = In.ar(2,[3]) ! 2  * inamp;
-	//sig.scope;
+	sig = In.ar(12,1) ! 2  * inamp;
 	Out.ar(out, sig);
 }).add;
 ~thereminInGrp = Group.new;

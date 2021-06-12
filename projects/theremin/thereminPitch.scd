@@ -1,9 +1,7 @@
 //// init below first (code) /////////////
-
 (
-
 ~thereminEffectsGrp = Group.after(~thereminInGrp);
-~thereminInput = Synth(\thereminInput,[\out, ~thereminBus,\inamp, 1], ~thereminInGrp);
+~thereminInput = Synth(\thereminInput,[\out, ~thereminBus,\inamp, 1,\in, 3], ~thereminInGrp);
 ~thereminPitch = Synth(\thereminPitch,[\in, ~thereminBus, \out, 0], ~thereminEffectsGrp);
 ~thereminPitch.set(\tempo,125);
 ~ping = Synth(\ping,[\out, 0], ~thereminEffectsGrp);
@@ -27,7 +25,6 @@
 ~ping.set(\gate,1);
 ~ping.set(\gate,0);
 ~pingVal = 1;// for toggle;
-
 (
 
 //////// code ////////////////
@@ -44,8 +41,8 @@ SynthDef(\thereminPitch, {
 	sig = sig.clip2(clip) * clipamp / clip;
 	test = sig;test.scope;
 	//
-	 freq=freq*pitchRatio/2;
-	 sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
+	freq=freq*pitchRatio/2;
+	sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
 	delay = HPF.ar(DelayL.ar(sig, 1, tempo / 60 * delayTempoRatio ), 100);
 	sig = XFade2.ar(sig, delay, -0.5) * gain;
 	sig = sig * EnvGen.ar(Env.asr(0.01, 0.5, 0.01,curve: 'sin'), LFPulse.ar(tempo / 60 * transRatio, width: transWidth));
@@ -68,7 +65,9 @@ SynthDef(\ping, {
 (
 MIDIClient.init;
 MIDIClient.sources;
-MIDIIn.connect(2, MIDIClient.sources.at(2));  // MIDIEndPoint("USB Oxygen 8 v2", "USB Oxygen 8 v2")
+//MIDIIn.connect(2, MIDIClient.sources.at(2));  // MIDIEndPoint("USB Oxygen 8 v2", "USB Oxygen 8 v2")
+~indexOfOxy8 = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("USB Oxygen 8 v2")});
+MIDIIn.connect(~indexOfOxy8, MIDIClient.sources[~indexOfOxy8]);
 ~map1= [71, 74, 84, 7,  91, 93, 5,  10];
 ~map2= [106,107,108,109,102,103,104,105]; // P10 == best
 ~map = ~map2;
