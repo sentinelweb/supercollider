@@ -1,11 +1,11 @@
+
+
 // setup ///////////
 (
 Server.default.options.inDevice_("TR-8S");
 Server.default.options.outDevice_("TR-8S");
 //Server.default.options.inDevice_("UMC404HD 192k");
-//Server.default.options.outDevice_("UMC404HD 192k");// weird clicking :(
-// Server.default.options.outDevice_("MacBook Pro Speakers");
-// Server.default.options.outDevice_("External Headphones");
+// Server.default.options.outDevice_("Built-in Output");// UMC404HD 192k <- weird crackling ...q
 Server.default.options.blockSize = 512;
 Server.default.options.sampleRate = 44100;
 s.boot;
@@ -16,17 +16,19 @@ ServerOptions.outDevices;
 MIDIdef.freeAll;
 MIDIClient.init;
 MIDIClient.sources;
-MIDIIn.connect(2, MIDIClient.sources.at(2));//MIDIEndPoint("USB Oxygen 8 v2", "USB Oxygen 8 v2")
-)
+~indexOfOxy8 = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("USB Oxygen 8 v2")});
+MIDIIn.connect(~indexOfOxy8, MIDIClient.sources[~indexOfOxy8]);
 
 // tools //////
-s.plotTree
+s.plotTree;
+)
 // synths ///////////////
 (
 SynthDef(\thereminInput, {
-	arg inamp = 3, out = 0;//in=3, // todo pass ref?
+	arg inamp = 3, out = 0;
 	var sig;
-	sig = In.ar(12,1) ! 2  * inamp;
+	sig = In.ar(2,[1]) ! 2  * inamp;
+	//sig.scope;
 	Out.ar(out, sig);
 }).add;
 
@@ -38,7 +40,7 @@ SynthDef(\ping, {
 }).add;
 
 MIDIdef.cc(\ccPing,{|val, ctnum, chan|
-	["\ccTheremin", val, ctnum, chan].postln;
+	["\ccPing", val, ctnum, chan].postln;
 	c = switch (ctnum)
 	{25} {// record button (left)
 		if(~pingVal==1,{~pingVal=0},{~pingVal=1});
@@ -62,6 +64,20 @@ MIDIdef.cc(\ccPing,{|val, ctnum, chan|
 ~pingVal = 1;// for toggle;
 
 //////// inputs testing ////////////////////////
+(
+(~thereminInputTest != nil).if { ~thereminInputTest.free;};
+
+SynthDef(\thereminInputTest, {
+	arg inamp = 3, out = 0;
+	var sig;
+	sig = SoundIn.ar([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14])  * inamp;
+	sig.scope;
+	Out.ar(out, sig);
+}).add;
+~thereminInputTest = Synth(\thereminInputTest,[\out, 0,\inamp, 1]);
+)
+~thereminInputTest.free;
+
 { In.ar(2,[3]) }.play; // input 1
 { In.ar(2,[4]) }.play; // input 2
 { In.ar(2,[5]) }.play; // input 3

@@ -37,8 +37,8 @@ SynthDef(\thereminPitch, {
 	sig = sig.clip2(clip) * clipamp / clip;
 	test = sig;test.scope;
 	//
-	 freq=freq*pitchRatio;//2;
-	 sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
+	freq=freq*pitchRatio;//2;
+	sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
 	delay = HPF.ar(DelayL.ar(sig, 1, tempo / 60 * delayTempoRatio ), 100);
 	sig = XFade2.ar(sig, delay, -0.5) * gain;
 	sig = sig * EnvGen.ar(Env.asr(0.01, 0.5, 0.01,curve: 'sin'), LFPulse.ar(tempo / 60 * transRatio, width: transWidth));
@@ -47,13 +47,6 @@ SynthDef(\thereminPitch, {
 	// create a new analyzer
 	FreqScope.new(400, 200, 0, server: s);
 
-	Out.ar(out, sig);
-}).add;
-
-SynthDef(\ping, {
-	arg out=0, gate = 0, amp=0.5;
-	var sig;
-	sig = EnvGen.ar(Env.asr(0.01, 0.5, 0.01,curve: 'sin'), gate) * SinOsc.ar(440);
 	Out.ar(out, sig);
 }).add;
 
