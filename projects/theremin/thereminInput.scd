@@ -3,7 +3,7 @@
 // setup ///////////
 (
 Server.default.options.inDevice_("TR-8S");
-Server.default.options.outDevice_("TR-8S");
+ Server.default.options.outDevice_("TR-8S");
 //Server.default.options.inDevice_("UMC404HD 192k");
 // Server.default.options.outDevice_("Built-in Output");// UMC404HD 192k <- weird crackling ...q
 Server.default.options.blockSize = 512;
@@ -18,16 +18,17 @@ MIDIClient.init;
 MIDIClient.sources;
 ~indexOfOxy8 = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("USB Oxygen 8 v2")});
 MIDIIn.connect(~indexOfOxy8, MIDIClient.sources[~indexOfOxy8]);
-
+ Server.default.options.inDevice;
 // tools //////
 s.plotTree;
 )
+
 // synths ///////////////
 (
 SynthDef(\thereminInput, {
 	arg inamp = 3, out = 0;
 	var sig;
-	sig = In.ar(2,[1]) ! 2  * inamp;
+	sig = SoundIn.ar(0) ! 2  * inamp;
 	//sig.scope;
 	Out.ar(out, sig);
 }).add;
@@ -74,7 +75,7 @@ SynthDef(\thereminInputTest, {
 	sig.scope;
 	Out.ar(out, sig);
 }).add;
-~thereminInputTest = Synth(\thereminInputTest,[\out, 0,\inamp, 1]);
+~thereminInputTest = Synth(\thereminInputTest,[\out, 0,\inamp, 20]);
 )
 ~thereminInputTest.free;
 
