@@ -83,12 +83,12 @@ SynthDef(\tri, {
 	Out.ar(out, sig);
 }).add;
 
-~meditationLength = 45; //min
+~meditationLength = 60; //min
 ~timeQuant = 60; //sec
 ~bowlsSeq = Pdef(\bowls,
 	Pmono(\prayer_bell,
 		\dur, ~timeQuant*5,
-		\midinote, Pseq([32, 37, 32, 39], inf),
+		\midinote, Pseq([32, 37, 32, 39]+7, inf),
 		\sing_switch,0,
 		\amp,0.5,
 		\lag,0
@@ -99,7 +99,7 @@ SynthDef(\tri, {
 	\instrument, \tri,
 	\dur, ~timeQuant,
 	\amp, 0.05,
-	\midinote, Pseq([ Rest(), 100, 102, 100, 102], inf),
+	\midinote, Pseq([ Rest(), 100, 102, 100, 102]+2, inf),
 	\dura, 2, \metal, 1.003)
 );
 
