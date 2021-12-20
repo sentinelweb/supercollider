@@ -1,4 +1,4 @@
-
+// program 1-1
 (
 MIDIClient.init();
 ~indexOfTr8s = MIDIClient.sources.detectIndex({arg ep; ep.name.contains("TR-8S")});
