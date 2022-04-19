@@ -113,13 +113,13 @@ SynthDef(\drone, {
 	Out.ar(out, sig);
 }).add;
 
-~drone.free;
+(~drone != nil).if {~drone.free};
 ~drone = Synth(\drone,[\amp, 0.001, \freq, Scale.major.degreeToFreq(2, 20.midicps, 1)]);
 Pdef(\drone, Pbind(
 	\type, \set,
-    \id, ~drone.nodeID,
-    \args, #[\freq, \amp, \filter_q],
-    \dur, 8,
+	\id, ~drone.nodeID,
+	\args, #[\freq, \amp, \filter_q],
+	\dur, 8,
 	\amp, Pfunc({~state[\drone][\amp]}),
 	\scale, Scale.major,
 	\degree, Pseq([
