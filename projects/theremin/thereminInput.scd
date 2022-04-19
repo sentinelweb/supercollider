@@ -2,7 +2,7 @@
 
 // setup ///////////
 (
-Server.default.options.inDevice_("TR-8S");
+// Server.default.options.inDevice_("TR-8S");
  Server.default.options.outDevice_("TR-8S");
 //Server.default.options.inDevice_("UMC404HD 192k");
 // Server.default.options.outDevice_("Built-in Output");// UMC404HD 192k <- weird crackling ...q
