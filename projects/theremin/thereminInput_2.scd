@@ -7,11 +7,12 @@ Server.default.options.sampleRate = 44100;
 ~thereminBus = Bus.audio(s,2);
 s.plotTree;
 s.boot;
+s.meter;
 SynthDef(\thereminInput, {
 	arg inamp = 1, out = 0, in = 0;
 	var sig;
 	sig = SoundIn.ar(in) ! 2  * inamp;
-	sig.scope;
+	sig.scope(\input);
 	Out.ar(out, sig);
 }).add;
 

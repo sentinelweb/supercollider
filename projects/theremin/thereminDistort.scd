@@ -1,3 +1,7 @@
+/// notes /////////////////
+// IEnvGen - could be used for remappig freq response of theremin
+
+
 //// init below first (code) /////////////
 (
 ~thereminEffectsGrp = Group.after(~thereminInGrp);
@@ -8,18 +12,23 @@
 //////// synth - distort ////////////////
 (
 SynthDef(\thereminDistortion, {
-	arg in=0, out=0, gain=1, tempo=120, clip=1, bpfOscFreq=1, bpfSweepRatio=0.1, bpfRecipQ=1, transMix = -1, transRatio=1, transWidth=1;
+	arg in=0, out=0, gain=1, tempo=120, clip=1, bpfSweepRatio=0.1, bpfRecipQ=0.5, transMix = -1, transRatio=1, transWidth=1;
 	var sig, delay, clipamp, test, trans, freq, hasFreq;
-	sig = SoundIn.ar([in, in+1]);
-	// sig = HPF.ar(HPF.ar(sig, 100), 20);
-	//# freq, hasFreq = Pitch.kr(sig, ampThreshold: 0.02, median: 7);
+	// sig = SoundIn.ar([in, in+1]);
+	sig = SoundIn.ar(in);
+	sig = HPF.ar(HPF.ar(sig, 100), 20);
+	# freq, hasFreq = Pitch.kr(sig, ampThreshold: 0.02, median: 7);
+	(freq/1000).scope(\freq);
     clipamp = Amplitude.kr(sig, 0.05, 0.05);
-	sig = sig.clip2(clip) ;//* clipamp / clip;
-	//sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
+	// distort
+	sig = sig.clip2(clip);//* clipamp / clip;
+	// not working .. why?
+	freq = freq.clip(20, 10000); // RemoveBadValues // Gate.kr(freq, hasFreq)
+	sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
 	trans = EnvGen.ar(Env.asr(0.01, 0.5, 0.01, curve: 'sin'), LFPulse.kr(tempo / 60 * transRatio, width: transWidth));
 	sig = XFade2.ar(sig, sig * trans, transMix);
-	sig = Pan2.ar(sig, 0.5) * gain;
-	test = sig; test.scope;
+	sig = (sig * gain)!2;
+	test = sig; test.scope(\distort);
 	Out.ar(out, sig);
 }).add;
 )
@@ -31,6 +40,8 @@ SynthDef(\thereminDistortion, {
 ~apc.addCtlIn(\k1,{~thereminDistortion.set(\clip, ~val.linexp(0, 127, 0.01, 1))});
 ~apc.addCtlIn(\sk1,{~thereminDistortion.set(\transWidth, ~val.linexp(0, 127, 0.05, 1))});
 ~apc.addCtlIn(\sk2, { ~thereminDistortion.set(\transMix, ~val.linlin(0, 127, -1, 1))});
+~apc.addCtlIn(\sk4, { ~thereminDistortion.set(\bpfRecipQ, ~val.linlin(0, 127, 0.01, 1).postln)});
+~apc.addCtlIn(\sk3, { ~thereminDistortion.set(\bpfSweepRatio, ~val.linlin(0, 127, 0.01, 1).postln)});
 ~apc.addNoteIn(\grid11, {~thereminDistortion.set(\transRatio, 1);~apc.update;});
 // ~apc.addNoteOut(\grid11, { if (~thereminDistortion.get(\transRatio).value==1) {\yellow}{\off}});
 ~apc.addNoteIn(\grid12, {~thereminDistortion.set(\transRatio, 2);~apc.update;});
@@ -54,6 +65,6 @@ SynthDef(\thereminDistortion, {
 ~thereminDistortion.set(\transWidth, 0.5);
 ~thereminDistortion.set(\bpfSweepRatio, 2000);
 ~thereminDistortion.set(\bpfOscFreq, 1000);
-~thereminDistortion.set(\bpfRecipQ, 200);
+~thereminDistortion.set(\bpfRecipQ, 20);
 ~thereminDistortion.get(\bpfOscFreq,{|a|postln(a);});
 ~thereminDistortion.free;
