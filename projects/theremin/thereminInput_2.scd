@@ -4,6 +4,7 @@ Server.default.options.inDevice_("UMC404HD 192k");
 Server.default.options.blockSize = 512;
 Server.default.options.sampleRate = 192000;
 Server.default.options.outDevice_("UMC404HD 192k");
+// Server.default.options.numOutputBusChannels = 4;
 
 ~thereminBus = Bus.audio(s,2);
 s.plotTree;
