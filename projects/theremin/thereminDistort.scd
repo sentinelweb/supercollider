@@ -8,6 +8,7 @@
 ~thereminDistortion.set(\tempo, 125);
 )
 ~thereminDistortion.free;
+~thereminDistortion.set(\tempo, 115.74);
 //////// synth - distort ////////////////
 (
 ~state = (
@@ -24,23 +25,25 @@
 ~makeDistortionTable.value();
 
 SynthDef(\thereminDistortion, {
-	arg in=0, out=0, gain=1, tempo=120, clip=1, bpfSweepRatio=0.1, bpfRecipQ=0.5, transMix = -1, transRatio=1, transWidth=1;
-	var sig, delay, clipamp, test, trans, freq, hasFreq;
-	// sig = SoundIn.ar([in, in+1]);
+	arg in=0, out=0, gain=1, tempo=120, /*clip=1,*/ bpfSweepRatio=0.1, bpfRecipQ=0.5, transMix = -1, transRatio=1, transWidth=1;
+	var sig, delay, clipamp, test, trans, freq, hasFreq, bpfFreq;
 	sig = SoundIn.ar(in);
 	sig = HPF.ar(HPF.ar(sig, 100), 20);
 	# freq, hasFreq = Pitch.kr(sig, ampThreshold: 0.02, median: 7);
 	(freq/1000).scope(\freq);
     clipamp = Amplitude.kr(sig, 0.05, 0.05);
 	// distort
+	// sig = sig.clip2(clip);
 	sig = Shaper.ar(~tfBuf, sig);
 	// not working .. why?
 	freq = freq.clip(20, 10000); // RemoveBadValues // Gate.kr(freq, hasFreq)
-	sig = BPF.ar(sig, SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq), bpfRecipQ);
+	bpfFreq = SinOsc.kr(tempo / 60, mul: freq * bpfSweepRatio, add: freq*2);
+	sig = BPF.ar(sig ,bpfFreq, bpfRecipQ);
 	trans = EnvGen.ar(Env.asr(0.01, 0.5, 0.01, curve: 'sin'), LFPulse.kr(tempo / 60 * transRatio, width: transWidth));
 	sig = XFade2.ar(sig, sig * trans, transMix);
-	sig = (sig * gain)!2;
+	sig = (sig * gain) !2;
 	test = sig; test.scope(\distort);
+
 	Out.ar(out, sig);
 }).add;
 )
@@ -48,7 +51,7 @@ SynthDef(\thereminDistortion, {
 /////// midi ////////////////////////////////
 (
 ~apc = AkaiAPC40();
-~apc.addCtlIn(\s1, {~thereminDistortion.set(\gain, ~val.linexp(0, 127, 0.001, 50))});
+~apc.addCtlIn(\master, {~thereminDistortion.set(\gain, ~val.linexp(0, 127, 0.001, 50))});
 // ~apc.addCtlIn(\k1, {~thereminDistortion.set(\clip, ~val.linexp(0, 127, 0.01, 1))});
 ~apc.addCtlIn(\k1, {
 	~state[\clip][\level] = ~val.linlin(0, 127, 0, 1);
@@ -57,7 +60,7 @@ SynthDef(\thereminDistortion, {
 ~apc.addCtlIn(\sk1, {~thereminDistortion.set(\transWidth, ~val.linexp(0, 127, 0.05, 1))});
 ~apc.addCtlIn(\sk2, { ~thereminDistortion.set(\transMix, ~val.linlin(0, 127, -1, 1))});
 ~apc.addCtlIn(\sk3, { ~thereminDistortion.set(\bpfSweepRatio, ~val.linexp(0, 127, 0.01, 1).postln)});
-~apc.addCtlIn(\sk4, { ~thereminDistortion.set(\bpfRecipQ, ~val.linexp(0, 127, 0.01, 1).postln)});
+~apc.addCtlIn(\sk4, { ~thereminDistortion.set(\bpfRecipQ, ~val.linexp(0, 127, 0.05, 1).postln)});
 ~apc.addCtlIn(\sk5, {
 	~state[\clip][\sat] = ~val.linexp(0, 127, 0.1, 700);
 	~makeDistortionTable.value();
