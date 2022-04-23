@@ -2,7 +2,8 @@
 // sometimes there are eathing problems with the mac input sounds is distorted. connecting the headphones output to the speaker fixed it
 Server.default.options.inDevice_("UMC404HD 192k");
 Server.default.options.blockSize = 512;
-Server.default.options.sampleRate = 44100;
+Server.default.options.sampleRate = 192000;
+Server.default.options.outDevice_("UMC404HD 192k");
 
 ~thereminBus = Bus.audio(s,2);
 s.plotTree;
