@@ -4,12 +4,15 @@ Server.default.options.inDevice_("UMC404HD 192k");
 Server.default.options.blockSize = 512;
 Server.default.options.sampleRate = 192000;
 Server.default.options.outDevice_("UMC404HD 192k");
+// fixme cant get any audio with 4 channels
 // Server.default.options.numOutputBusChannels = 4;
+Server.default.options.numOutputBusChannels.postln;
 
-~thereminBus = Bus.audio(s,2);
+
 s.plotTree;
 s.boot;
 s.meter;
+~thereminBus = Bus.audio(s,2);
 SynthDef(\thereminInput, {
 	arg inamp = 1, out = 0, in = 0;
 	var sig;
@@ -26,6 +29,8 @@ SynthDef(\patch, {|out = 0, in = 0|
 )
 
 (
+//(~thereminBus==nil) .if { ~thereminBus = Bus.audio(s,2);};
+//  (~thereminVoiceBus == nil) .if { ~thereminVoiceBus = Bus.audio(s,2);};
   (~thereminInGrp != nil).if { ~thereminInGrp.free; };
   (~thereminOutGrp != nil).if { ~thereminOutGrp.free; };
   ~thereminInGrp = Group.new;

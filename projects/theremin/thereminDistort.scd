@@ -1,5 +1,7 @@
 /// notes /////////////////
 // IEnvGen - could be used for remappig freq response of theremin
+// hold and grab make a button press to save freq then wait until
+// had freq reaches it to unloick it from that freq
 
 //// init below first (code) /////////////
 (
@@ -8,7 +10,7 @@
 ~thereminDistortion.set(\tempo, 125);
 )
 ~thereminDistortion.free;
-~thereminDistortion.set(\tempo, 124.71);
+~thereminDistortion.set(\tempo, 119.73);
 //////// synth - distort ////////////////
 (
 ~state = (
@@ -16,7 +18,7 @@
 );
 ~makeDistortionTable = {
 	var level = ~state[\clip][\level], sat = ~state[\clip][\sat];
-	~tf = Env(levels:[-1*level,0,level],times:[1,1], curve:[sat,-1*sat]);
+	~tf = Env(levels:[-1*level,0,level], times:[1,1], curve:[sat,-1*sat]);
 	~tfTable = ~tf.asSignal(1024).asWavetableNoWrap; // use with Shaper
 	(~tfBuf != nil).if { ~tfBuf.free; };
 	// todo ping-pong buffer allocation to stop clicking
@@ -52,10 +54,10 @@ SynthDef(\thereminDistortion, {
 
 /////// midi ////////////////////////////////
 (
+(~apc != nil).if {~apc.reset();};
 ~apc = AkaiAPC40();
 ~apc.addCtlIn(\master, {~thereminDistortion.set(\gain, ~val.linexp(0, 127, 0.001, 50))});
 ~apc.addCtlIn(\cue, {~thereminDistortion.set(\previewGain, ~val.linexp(0, 127, 0.001, 50))});
-
 ~apc.addCtlIn(\k1, {
 	~state[\clip][\level] = ~val.linlin(0, 127, 0, 1);
 	~makeDistortionTable.value();
