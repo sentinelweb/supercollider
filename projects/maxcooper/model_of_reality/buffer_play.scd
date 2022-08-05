@@ -24,20 +24,22 @@ s.waitForBoot{
 )
 
 ( // todo send length
-SynthDef.new(\bufrd_trig, {// todo make start length into Ref
+SynthDef.new(\bufrd_trig, {
 	arg amp=1, out=0, buf, seg=#[0,0.875], pitchRatio, timeDispersion=0;
 	var sig, ptr, env, start, length, startSamp, endSamp;
+
 	start = seg[0]; length = seg[1];
 	startSamp = start * BufSampleRate.ir(buf);
 	endSamp = startSamp + (length * BufSampleRate.ir(buf));
+
 	ptr = Line.ar(startSamp, endSamp, length, doneAction: 2);
-	//ptr.scope;
 	sig = BufRd.ar(2, buf, ptr, loop:0);
+
+	sig = PitchShift.ar(sig, 0.01, pitchRatio, timeDispersion: timeDispersion);
+
 	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * length, curve: [-4, 0, 4]);
 	sig = sig * EnvGen.ar(env, doneAction: 2);
-	//sig = PitchShift.ar(sig, 0.3, pitchRatio, timeDispersion: timeDispersion);
 	sig = sig * amp;
-	//sig.scope;
 	Out.ar(out, sig);
 }).add;
 )
@@ -58,14 +60,20 @@ PdefAllGui();
 	lead:(
 		amp:1,
 		seg: ~seg[\lead][0],
+		pitchRatio:1,
+		timeDispersion:0
 	),
 	perc:(
 		amp:1,
-		seg: ~seg[\perc][0]
+		seg: ~seg[\perc][0],
+		pitchRatio:1,
+		timeDispersion:0
 	),
 	vocal_5:(
 		amp:5,
-		seg: ~seg[\vocal_5][0]
+		seg: ~seg[\vocal_5][0],
+		pitchRatio:1,
+		timeDispersion:0
 	)
 );
 
@@ -75,6 +83,8 @@ Pdef(\lead_chords, Pbind(
 	\dur, 1,
 	\buf, ~samples[\lead].bufnum,
 	\seg, Pfunc({~state[\lead][\seg]}),
+	\pitchRatio, Pfunc({~state[\lead][\pitchRatio]}),
+	\timeDispersion, Pfunc({~state[\lead][\timeDispersion]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -85,6 +95,8 @@ Pdef(\perc, Pbind(
 	\dur, 1,
 	\buf, ~samples[\perc].bufnum,
 	\seg, Pfunc({~state[\perc][\seg]}),
+	\pitchRatio, Pfunc({~state[\perc][\pitchRatio]}),
+	\timeDispersion, Pfunc({~state[\perc][\timeDispersion]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -95,6 +107,8 @@ Pdef(\vocal_5, Pbind(
 	\dur, 1,
 	\buf, ~samples[\vocal_5].bufnum,
 	\seg, Pfunc({~state[\vocal_5][\seg]}),
+	\pitchRatio, Pfunc({~state[\vocal_5][\pitchRatio]}),
+	\timeDispersion, Pfunc({~state[\vocal_5][\timeDispersion]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -107,7 +121,10 @@ Pdef(\vocal_5).play;
 Pdef(\lead_chords).stop;
 Pdef(\perc).stop;
 Pdef(\vocal_5).stop;
-~state
+~state[\lead][\pitchRatio] = 4.midiratio
+~state[\lead][\timeDispersion] = 0.001
+~state[\vocal_5][\pitchRatio] = 5.midiratio
+~state[\vocal_5][\timeDispersion] = 0.000
 // jamming with raw loops ////////////////////////////////////
 ~samples[2].query;
 x = Synth.new(\bufrd_trig, [\buf, ~samples[2].bufnum, \start, 44100*10,\end, 44100*11])
