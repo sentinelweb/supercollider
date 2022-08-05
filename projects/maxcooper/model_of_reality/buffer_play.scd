@@ -4,12 +4,13 @@ s.waitForBoot{
 	s.meter;
 	Buffer.freeAll();
 	~samples = Dictionary.new;
+	// p6 tonalFX5, FX6 - good stuff
 	~fileNames = (
 		\lead : "Lead Chords - Dry (w:StFx).wav",
         \kick : "Kick + Tune.wav",
         \hat : "HiHat Sustain - Dry 7L .wav",
         \perc : "Perc FX 1 - Dry (w:StFx).wav",
-        \vocal : "Vocal Chops 5 (w:StFx).wav"
+        \vocal_5 : "Vocal Chops 5 (w:StFx).wav"
 	);
 	~folder = PathName.new("/Users/robmunro/Downloads/A Model of Reality remix challenge/A Model of Reality/Audio Files/");
 	~counter = 0;
@@ -23,13 +24,12 @@ s.waitForBoot{
 )
 
 ( // todo send length
-SynthDef.new(\bufrd_trig, {
-	arg amp=1, out=0, buf, start, end, rate=1, freq=330/*midi 64*/, timeDispersion=0, t_trig=0;
-	var sig, ptr, pitchRatio = 1, env, length;
-	length = (end - start) / BufSampleRate.ir(buf); // secs
-	//pitchRatio = (freq/64.midicps).asInteger;
-	//ptr = Phasor.ar(t_trig, BufRateScale.kr(buf) * rate, start, end);
-	ptr = Line.ar(start, end, length, doneAction: 2);
+SynthDef.new(\bufrd_trig, {// todo make start length into Ref
+	arg amp=1, out=0, buf, start/*sec*/, length/*sec*/, pitchRatio, timeDispersion=0;
+	var sig, ptr, env, startSamp, endSamp;
+	startSamp = start * BufSampleRate.ir(buf);
+	endSamp = startSamp + (length * BufSampleRate.ir(buf));
+	ptr = Line.ar(startSamp, endSamp, length, doneAction: 2);
 	//ptr.scope;
 	sig = BufRd.ar(2, buf, ptr, loop:0);
 	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * length, curve: [-4, 0, 4]);
@@ -47,56 +47,59 @@ PdefAllGui();
 ~tempoClock = TempoClock.default;
 ~tempoClock.tempo = 105/60;
 ~tempoRatio = 105/120;
-~cmp = (
+~seg = (
+	lead:[(start:10, length: ~tempoRatio)],
+	perc:[(start:144.3, length: ~tempoRatio)],
+	vocal_5:[(start:42, length: ~tempoRatio)]
+);
+
+~state = (
 	lead:(
 		amp:1,
-		start: 44100*10,
-		end: 44100*(10 + ~tempoRatio),
+		start: ~seg[\lead][0][\start],
+		length: ~seg[\lead][0][\length],
 	),
-	perc_fx1:(
+	perc:(
 		amp:1,
-		start: 44100*144.3,
-		end: 44100*(144.3 + ~tempoRatio),
+		start: ~seg[\perc][0][\start],
+		length: ~seg[\perc][0][\length],
 	),
-	vocal_chops_10:(
+	vocal_5:(
 		amp:5,
-		start: 44100*42,
-		end: 44100*(42 + ~tempoRatio),
+		start: ~seg[\vocal_5][0][\start],
+		length: ~seg[\vocal_5][0][\length],
 	)
 );
 
 Pdef(\lead_chords, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, Pfunc({~cmp[\lead][\amp]}),
+	\amp, Pfunc({~state[\lead][\amp]}),
 	\dur, 1,
-	\midinote, 64,
 	\buf, ~samples[\lead].bufnum,
-	\start, Pfunc({~cmp[\lead][\start]}),
-	\end, Pfunc({~cmp[\lead][\end]}),
+	\start, Pfunc({~state[\lead][\start]}),
+	\length, Pfunc({~state[\lead][\length]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\perc_fx1, Pbind(
+Pdef(\perc, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, Pfunc({~cmp[\perc_fx1][\amp]}),
+	\amp, Pfunc({~state[\perc][\amp]}),
 	\dur, 1,
-	\midinote, 64,
 	\buf, ~samples[\perc].bufnum,
-	\start, Pfunc({~cmp[\perc_fx1][\start]}),
-	\end, Pfunc({~cmp[\perc_fx1][\end]}),
+	\start, Pfunc({~state[\perc][\start]}),
+	\length, Pfunc({~state[\perc][\length]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
 
-Pdef(\vocal_chops_10, Pbind(
+Pdef(\vocal_5, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, Pfunc({~cmp[\vocal_chops_10][\amp]}),
+	\amp, Pfunc({~state[\vocal_5][\amp]}),
 	\dur, 1,
-	\midinote, 60,
-	\buf, ~samples[\vocal].bufnum,
-	\start, Pfunc({~cmp[\vocal_chops_10][\start]}),
-	\end, Pfunc({~cmp[\vocal_chops_10][\end]}),
+	\buf, ~samples[\vocal_5].bufnum,
+	\start, Pfunc({~state[\vocal_5][\start]}),
+	\length, Pfunc({~state[\vocal_5][\length]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -104,11 +107,12 @@ Pdef(\vocal_chops_10, Pbind(
 
 //control //////////////////////
 Pdef(\lead_chords).play;
-Pdef(\perc_fx1).play;
-Pdef(\vocal_chops_10).play;
+Pdef(\perc).play;
+Pdef(\vocal_5).play;
 Pdef(\lead_chords).stop;
-Pdef(\perc_fx1).stop;
-Pdef(\vocal_chops_10).stop;
+Pdef(\perc).stop;
+Pdef(\vocal_5).stop;
+~state
 // jamming with raw loops ////////////////////////////////////
 ~samples[2].query;
 x = Synth.new(\bufrd_trig, [\buf, ~samples[2].bufnum, \start, 44100*10,\end, 44100*11])
@@ -133,7 +137,6 @@ z.set(\timeDispersion, 0.1);
 z.set(\start, 44100*10.0, \end, 44100*11);
 z.set(\amp, 2);
 z.free;
-// p6 tonalFX5, FX6 - good stuff
 ~samples[3].sampleRate
 ///////////////////////////////////////////// testing ///////////////////////
 ~player = ~samples[2].play;
