@@ -1,18 +1,25 @@
 (
-s.plotTree;
-s.meter;
-Buffer.freeAll();
-~samples = Array.new;
-~folder = PathName.new("/Users/robmunro/Downloads/A Model of Reality remix challenge/A Model of Reality/Audio Files/");
-~counter = 0;
-~folder.entries.do({|path|
-	//path.fileName.postln;
-	if (path.fileName.contains("(w:StFx)"),{
-		[~counter, path.fileName].postln;
-		~samples = ~samples.add(Buffer.read(s, path.fullPath));
+s.waitForBoot{
+	s.plotTree;
+	s.meter;
+	Buffer.freeAll();
+	~samples = Dictionary.new;
+	~fileNames = (
+		\lead : "Lead Chords - Dry (w:StFx).wav",
+        \kick : "Kick + Tune.wav",
+        \hat : "HiHat Sustain - Dry 7L .wav",
+        \perc : "Perc FX 1 - Dry (w:StFx).wav",
+        \vocal : "Vocal Chops 5 (w:StFx).wav"
+	);
+	~folder = PathName.new("/Users/robmunro/Downloads/A Model of Reality remix challenge/A Model of Reality/Audio Files/");
+	~counter = 0;
+	~fileNames.keys.do({|fileKey|
+		var path = ~folder.fullPath++~fileNames[fileKey];
+		path.postln;
+		~samples = ~samples.put(fileKey, Buffer.read(s, path));
 		~counter = ~counter + 1;
-	})
-});
+	});
+}
 )
 
 ( // todo send length
@@ -25,7 +32,7 @@ SynthDef.new(\bufrd_trig, {
 	ptr = Line.ar(start, end, length, doneAction: 2);
 	//ptr.scope;
 	sig = BufRd.ar(2, buf, ptr, loop:0);
-	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * l, curve: [-4, 0, 4]);
+	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * length, curve: [-4, 0, 4]);
 	sig = sig * EnvGen.ar(env, doneAction: 2);
 	//sig = PitchShift.ar(sig, 0.3, pitchRatio, timeDispersion: timeDispersion);
 	sig = sig * amp;
@@ -63,7 +70,7 @@ Pdef(\lead_chords, Pbind(
 	\amp, Pfunc({~cmp[\lead][\amp]}),
 	\dur, 1,
 	\midinote, 64,
-	\buf, ~samples[2].bufnum,
+	\buf, ~samples[\lead].bufnum,
 	\start, Pfunc({~cmp[\lead][\start]}),
 	\end, Pfunc({~cmp[\lead][\end]}),
 	\out, 0,
@@ -75,7 +82,7 @@ Pdef(\perc_fx1, Pbind(
 	\amp, Pfunc({~cmp[\perc_fx1][\amp]}),
 	\dur, 1,
 	\midinote, 64,
-	\buf, ~samples[3].bufnum,
+	\buf, ~samples[\perc].bufnum,
 	\start, Pfunc({~cmp[\perc_fx1][\start]}),
 	\end, Pfunc({~cmp[\perc_fx1][\end]}),
 	\out, 0,
@@ -87,7 +94,7 @@ Pdef(\vocal_chops_10, Pbind(
 	\amp, Pfunc({~cmp[\vocal_chops_10][\amp]}),
 	\dur, 1,
 	\midinote, 60,
-	\buf, ~samples[10].bufnum,
+	\buf, ~samples[\vocal].bufnum,
 	\start, Pfunc({~cmp[\vocal_chops_10][\start]}),
 	\end, Pfunc({~cmp[\vocal_chops_10][\end]}),
 	\out, 0,
@@ -149,3 +156,4 @@ s.options.numBuffers;
 
 l=5;
 Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * l,curve: [-4, 0, 4]).plot;
+
