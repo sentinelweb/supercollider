@@ -25,8 +25,9 @@ s.waitForBoot{
 
 ( // todo send length
 SynthDef.new(\bufrd_trig, {// todo make start length into Ref
-	arg amp=1, out=0, buf, start/*sec*/, length/*sec*/, pitchRatio, timeDispersion=0;
-	var sig, ptr, env, startSamp, endSamp;
+	arg amp=1, out=0, buf, seg=#[0,0.875], pitchRatio, timeDispersion=0;
+	var sig, ptr, env, start, length, startSamp, endSamp;
+	start = seg[0]; length = seg[1];
 	startSamp = start * BufSampleRate.ir(buf);
 	endSamp = startSamp + (length * BufSampleRate.ir(buf));
 	ptr = Line.ar(startSamp, endSamp, length, doneAction: 2);
@@ -48,26 +49,23 @@ PdefAllGui();
 ~tempoClock.tempo = 105/60;
 ~tempoRatio = 105/120;
 ~seg = (
-	lead:[(start:10, length: ~tempoRatio)],
-	perc:[(start:144.3, length: ~tempoRatio)],
-	vocal_5:[(start:42, length: ~tempoRatio)]
+	lead:[[10, ~tempoRatio]],
+	perc:[[144.3, ~tempoRatio]],
+	vocal_5:[[42, ~tempoRatio]]
 );
 
 ~state = (
 	lead:(
 		amp:1,
-		start: ~seg[\lead][0][\start],
-		length: ~seg[\lead][0][\length],
+		seg: ~seg[\lead][0],
 	),
 	perc:(
 		amp:1,
-		start: ~seg[\perc][0][\start],
-		length: ~seg[\perc][0][\length],
+		seg: ~seg[\perc][0]
 	),
 	vocal_5:(
 		amp:5,
-		start: ~seg[\vocal_5][0][\start],
-		length: ~seg[\vocal_5][0][\length],
+		seg: ~seg[\vocal_5][0]
 	)
 );
 
@@ -76,8 +74,7 @@ Pdef(\lead_chords, Pbind(
 	\amp, Pfunc({~state[\lead][\amp]}),
 	\dur, 1,
 	\buf, ~samples[\lead].bufnum,
-	\start, Pfunc({~state[\lead][\start]}),
-	\length, Pfunc({~state[\lead][\length]}),
+	\seg, Pfunc({~state[\lead][\seg]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -87,8 +84,7 @@ Pdef(\perc, Pbind(
 	\amp, Pfunc({~state[\perc][\amp]}),
 	\dur, 1,
 	\buf, ~samples[\perc].bufnum,
-	\start, Pfunc({~state[\perc][\start]}),
-	\length, Pfunc({~state[\perc][\length]}),
+	\seg, Pfunc({~state[\perc][\seg]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -98,8 +94,7 @@ Pdef(\vocal_5, Pbind(
 	\amp, Pfunc({~state[\vocal_5][\amp]}),
 	\dur, 1,
 	\buf, ~samples[\vocal_5].bufnum,
-	\start, Pfunc({~state[\vocal_5][\start]}),
-	\length, Pfunc({~state[\vocal_5][\length]}),
+	\seg, Pfunc({~state[\vocal_5][\seg]}),
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
