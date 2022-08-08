@@ -3,6 +3,8 @@
 // key: EMaj
 (
 ~tempo = 105;
+// just when using beats heaphones - input sr 16k
+s.options.numInputBusChannels=0;
 s.waitForBoot{
 	s.plotTree;
 	s.meter;
@@ -57,20 +59,62 @@ PdefAllGui();
 ~beatTime = 60/~tempo;
 ~seg = (
 	lead:[
-		[8.538, 4*~beatTime],
-		[57.411, 4*~beatTime]
+		[[8.538, 4*~beatTime]],
+		[[57.411, 4*~beatTime]]
 	],
 	perc:[
-	    [144.3, ~beatTime],
-	    [199.22, ~beatTime],
-	    [196.22, 2*~beatTime],
+	    [[144.3, ~beatTime]],
+	    [[199.22, ~beatTime]],
+	    [[196.22, 2*~beatTime]],
 	],
 	vocal_5:[
-	    [42, 4*~beatTime],
-	    [161, 4*~beatTime]
+	    [[42, 2*~beatTime]],
+	    [[161, 2*~beatTime]]
 	]
 );
-
+)
+(
+Pdef(\lead_chords, Pbind(
+	\instrument, \bufrd_trig,
+	\amp, 1,
+	\dur, 4,
+	\buf, ~samples[\lead].bufnum,
+	\seg, Pfunc({~seg[\lead][3.xrand-1]}),
+	\pitchRatio, 1,
+	\timeDispersion, 0,
+	\out, 0,
+)
+).quant_(~tempoClock.beatsPerBar);
+)
+(
+Pdef(\perc, Pbind(
+	\instrument, \bufrd_trig,
+	\amp, 1,
+	\dur, 2,
+	\buf, ~samples[\perc].bufnum,
+	\seg, Pfunc({~seg[\perc][4.xrand-1]}),
+	\pitchRatio, 1,
+	\timeDispersion, 0,
+	\out, 0,
+)
+).quant_(~tempoClock.beatsPerBar);
+)
+(
+Pdef(\vocal_5, Pbind(
+	\instrument, \bufrd_trig,
+	\amp, 1,
+	\dur, 8,
+	\buf, ~samples[\vocal_5].bufnum,
+	\seg, Pfunc({~seg[\vocal_5][3.xrand-1]}),
+	\pitchRatio, 1,
+	\timeDispersion, 0,
+	\out, 0,
+)
+).quant_(~tempoClock.beatsPerBar);
+)
+///////////////////////////////////////////////////////////////////////////
+// pdef with state
+(
 ~state = (
 	lead:(
 		amp: 1,
