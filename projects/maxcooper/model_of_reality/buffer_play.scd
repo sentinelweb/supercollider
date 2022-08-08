@@ -14,7 +14,7 @@ s.waitForBoot{
 	~fileNames = (
 		\lead : "Lead Chords - Dry (w:StFx).wav",
         \kick : "Kick + Tune.wav",
-        \hat : "HiHat Sustain - Dry 7L .wav",
+        \hat : "HiHat Sustain 2 - Dry.wav",
         \perc : "Perc FX 1 - Dry (w:StFx).wav",
         \vocal_5 : "Vocal Chops 5 (w:StFx).wav"
 	);
@@ -60,7 +60,10 @@ PdefAllGui();
 ~seg = (
 	lead:[
 		[[8.538, 4*~beatTime]],
-		[[57.411, 4*~beatTime]]
+		[[57.411, 4*~beatTime]],
+		[[91.49, 4*~beatTime]],
+		[[316.75, 4*~beatTime]],
+		[[341.75, 4*~beatTime]]
 	],
 	perc:[
 	    [[144.3, ~beatTime]],
@@ -70,6 +73,12 @@ PdefAllGui();
 	vocal_5:[
 	    [[42, 2*~beatTime]],
 	    [[161, 2*~beatTime]]
+	],
+	hats:[
+	    [[82.38, 4*~beatTime]],
+	    [[106.10, 4*~beatTime]],
+	    [[235.08, 4*~beatTime]],
+		[[262.96, 4*~beatTime]]
 	]
 );
 )
@@ -79,7 +88,7 @@ Pdef(\lead_chords, Pbind(
 	\amp, 1,
 	\dur, 4,
 	\buf, ~samples[\lead].bufnum,
-	\seg, Pfunc({~seg[\lead][3.xrand-1]}),
+	\seg, Pfunc({~seg[\lead].choose}),
 	\pitchRatio, 1,
 	\timeDispersion, 0,
 	\out, 0,
@@ -92,7 +101,7 @@ Pdef(\perc, Pbind(
 	\amp, 1,
 	\dur, 2,
 	\buf, ~samples[\perc].bufnum,
-	\seg, Pfunc({~seg[\perc][4.xrand-1]}),
+	\seg, Pfunc({~seg[\perc].choose}),
 	\pitchRatio, 1,
 	\timeDispersion, 0,
 	\out, 0,
@@ -105,7 +114,7 @@ Pdef(\vocal_5, Pbind(
 	\amp, 1,
 	\dur, 8,
 	\buf, ~samples[\vocal_5].bufnum,
-	\seg, Pfunc({~seg[\vocal_5][3.xrand-1]}),
+	\seg, Pfunc({~seg[\vocal_5].choose}),
 	\pitchRatio, 1,
 	\timeDispersion, 0,
 	\out, 0,
