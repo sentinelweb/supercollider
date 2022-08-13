@@ -22,7 +22,7 @@ s.waitForBoot{
 	~counter = 0;
 	~fileNames.keys.do({|fileKey|
 		var path = ~folder.fullPath++~fileNames[fileKey];
-		path.postln;
+		[path].postln;
 		~samples = ~samples.put(fileKey, Buffer.read(s, path));
 		~counter = ~counter + 1;
 	});
@@ -42,7 +42,7 @@ SynthDef.new(\bufrd_trig, {
 	ptr = Line.ar(startSamp, endSamp, length, doneAction: 2);
 	sig = BufRd.ar(2, buf, ptr, loop:0);
 
-	sig = PitchShift.ar(sig, 0.01, pitchRatio, timeDispersion: timeDispersion);
+	sig = PitchShift.ar(sig, 0.2, pitchRatio, timeDispersion: timeDispersion);
 
 	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * length, curve: [-4, 0, 4]);
 	sig = sig * EnvGen.ar(env, doneAction: 2);
@@ -53,6 +53,7 @@ SynthDef.new(\bufrd_trig, {
 
 // sequencing ////////////////////////////////////
 (
+s.plotTree;
 PdefAllGui();
 ~tempoClock = TempoClock.default;
 ~tempoClock.tempo = ~tempo/60;
@@ -62,8 +63,8 @@ PdefAllGui();
 		[[8.538, 4*~beatTime]],
 		[[57.411, 4*~beatTime]],
 		[[91.49, 4*~beatTime]],
-		[[316.75, 4*~beatTime]],
-		[[341.75, 4*~beatTime]]
+//		[[316.75, 4*~beatTime]],// crackly
+//		[[341.75, 4*~beatTime]],// crackly
 	],
 	perc:[
 	    [[144.3, ~beatTime]],
@@ -72,23 +73,63 @@ PdefAllGui();
 	],
 	vocal_5:[
 	    [[42, 2*~beatTime]],
-	    [[161, 2*~beatTime]]
+	    [[42, 4*~beatTime]],
+	    [[161, 4*~beatTime]]
 	],
 	hats:[
 	    [[82.38, 4*~beatTime]],
 	    [[106.10, 4*~beatTime]],
 	    [[235.08, 4*~beatTime]],
 		[[262.96, 4*~beatTime]]
+	],
+	kick:[
+	    [[41.09, 4*~beatTime]],
+	    [[82.17, 4*~beatTime]],
+	    [[201.0, 4*~beatTime]],
+		[[217.0, 4*~beatTime]]
 	]
 );
 )
+// TODOS:
+// - try finding a VST for pitchshift
+// https://hiphopmakers.com/best-free-pitch-shifter-vst-plugins
+// - make samp time variabe so just mod /dur
+// try
+// #[seg, sustain]:    Ptuple([
+// 	Pfunc({~seg[\lead].choose}),
+// 	Pkey(\dur, inf)
+// ])
+
+// - try making a Pattern of Pbind
+// Pseq([
+// 	Pbind(\instrument, \acid,
+// 		\dur, Pseq([0.25, 0.5, 0.25], 4),
+// 		\root, -24,
+// 		\degree, Pseq([0, 3, 5, 7, 9, 11, 5, 1], inf),
+// 		\pan, Pfunc({1.0.rand2}),
+// 		\cut, Pxrand([1000, 500, 2000, 300], inf),
+// 		\rez, Pfunc({0.7.rand +0.3}),
+// 		\amp, 0.2
+// 	),
+// 	Pbind(\instrument, \acid,
+// 		\dur, Pseq([0.25], 6),
+// 		\root, -24,
+// 		\degree, Pseq([18, 17, 11, 9], inf),
+// 		\pan, Pfunc({1.0.rand2}),
+// 		\cut, 1500,
+// 		\rez, Pfunc({0.7.rand +0.3}),
+// 		\amp, 0.16
+// 	)
+// ], inf).play;
+
 (
 Pdef(\lead_chords, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, 1,
+	\amp, 0.5,
 	\dur, 4,
 	\buf, ~samples[\lead].bufnum,
 	\seg, Pfunc({~seg[\lead].choose}),
+	// \seg, Pfunc({~seg[\lead][2]}),
 	\pitchRatio, 1,
 	\timeDispersion, 0,
 	\out, 0,
@@ -111,16 +152,54 @@ Pdef(\perc, Pbind(
 (
 Pdef(\vocal_5, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, 1,
-	\dur, 8,
+	\amp, 1.5,
+	\dur, 4,
 	\buf, ~samples[\vocal_5].bufnum,
-	\seg, Pfunc({~seg[\vocal_5].choose}),
+//	\seg, Pfunc({~seg[\vocal_5].choose}),
+	\seg, Pfunc({~seg[\vocal_5][1]}),
+	\pitchRatio, Pfunc({0.midiratio}),
+	\timeDispersion, 0.0001,
+	\out, 0,
+)
+).quant_(~tempoClock.beatsPerBar);
+)
+(
+Pdef(\hats, Pbind(
+	\instrument, \bufrd_trig,
+	\amp, 1,
+	\dur, 4,
+	\buf, ~samples[\hat].bufnum,
+	\seg, Pfunc({~seg[\hats].choose}),
 	\pitchRatio, 1,
 	\timeDispersion, 0,
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
 )
+(
+Pdef(\kick, Pbind(
+	\instrument, \bufrd_trig,
+	\amp, 1,
+	\dur, 4,
+	\buf, ~samples[\kick].bufnum,
+	\seg, Pfunc({~seg[\kick].choose}),
+	\pitchRatio, 1,
+	\timeDispersion, 0,
+	\out, 0,
+)
+).quant_(~tempoClock.beatsPerBar);
+)
+//control //////////////////////
+Pdef(\lead_chords).play;
+Pdef(\perc).play;
+Pdef(\vocal_5).play;
+Pdef(\lead_chords).stop;
+Pdef(\perc).stop;
+Pdef(\vocal_5).stop;
+~state[\lead][\pitchRatio] = 4.midiratio
+~state[\lead][\timeDispersion] = 0.001
+~state[\vocal_5][\pitchRatio] = 5.midiratio
+~state[\vocal_5][\timeDispersion] = 0.000
 ///////////////////////////////////////////////////////////////////////////
 // pdef with state
 (
@@ -191,17 +270,7 @@ Pdef(\vocal_5, Pbind(
 ).quant_(~tempoClock.beatsPerBar);
 )
 
-//control //////////////////////
-Pdef(\lead_chords).play;
-Pdef(\perc).play;
-Pdef(\vocal_5).play;
-Pdef(\lead_chords).stop;
-Pdef(\perc).stop;
-Pdef(\vocal_5).stop;
-~state[\lead][\pitchRatio] = 4.midiratio
-~state[\lead][\timeDispersion] = 0.001
-~state[\vocal_5][\pitchRatio] = 5.midiratio
-~state[\vocal_5][\timeDispersion] = 0.000
+
 // jamming with raw loops ////////////////////////////////////
 ~samples[2].query;
 x = Synth.new(\bufrd_trig, [\buf, ~samples[2].bufnum, \start, 44100*10,\end, 44100*11])
