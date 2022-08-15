@@ -32,17 +32,18 @@ s.waitForBoot{
 (
 SynthDef(\dummy, { }).add;
 SynthDef.new(\bufrd_trig, {
-	arg amp=1, out=0, buf, seg=#[0, 2.285], pitchRatio, timeDispersion=0;// 2.285 = 4*60/105 = 4 beats
-	var sig, sigWarp, sigBuf, ptr, env, start, length, startSamp, endSamp, durSamp;
+	arg amp=1, out=0, buf, seg=#[0, 2.285], pitchRatio=#[1,1], timeDispersion=0;// 2.285 = 4*60/105 = 4 beats
+	var sig, ptr, env, start, length, startSamp, endSamp, durSamp;
 
 	durSamp = BufDur.ir(buf)*BufSampleRate.ir(buf);
 	start = seg[0]; length = seg[1];
 	startSamp = start * BufSampleRate.ir(buf);
 	endSamp = startSamp + (length * BufSampleRate.ir(buf));
 	ptr = Line.ar(startSamp, endSamp, length, doneAction: 2);
-	sigBuf = BufRd.ar(2, buf, ptr, loop:0);
-	sigWarp = Warp1.ar(2, buf, ptr/durSamp, pitchRatio, windowSize:0.1, envbufnum:-1/*hanning*/, overlaps: 32, windowRandRatio:timeDispersion, interp:4, mul: 0.3);
-	sig  = sigWarp;
+	sig  = if (pitchRatio[1],
+		BufRd.ar(2, buf, ptr, loop:0) * 0.55,
+		Warp1.ar(2, buf, ptr/durSamp, pitchRatio[0], windowSize:0.1, envbufnum:-1/*hanning*/, overlaps: 32, windowRandRatio:timeDispersion, interp:4, mul: 0.3)
+	);
 	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * length, curve: [-4, 0, 4]);
 	sig = sig * EnvGen.ar(env, doneAction: 2);
 	sig = sig * amp;
@@ -88,7 +89,12 @@ PdefAllGui();
 		[[217.0, 4*~beatTime]]
 	]
 );
+~pitchRatio = {
+	arg pitchRatio;
+	[[pitchRatio.midiratio, if ((pitchRatio==0.0), 1, 0)]].postln;
+};
 )
+~pitchRatio.(0)
 // TODOS:
 // - try finding a VST for pitchshift
 // https://hiphopmakers.com/best-free-pitch-shifter-vst-plugins
@@ -129,7 +135,7 @@ Pdef(\lead_chords, Pbind(
 	\buf, ~samples[\lead].bufnum,
 	\seg, Pfunc({~seg[\lead].choose}),
 	// \seg, Pfunc({~seg[\lead][2]}),
-	\pitchRatio, 1,
+	\pitchRatio, Pfunc({~pitchRatio.(0)}),
 	\timeDispersion, 0,
 	\out, 0,
 )
@@ -142,7 +148,7 @@ Pdef(\perc, Pbind(
 	\dur, 2,
 	\buf, ~samples[\perc].bufnum,
 	\seg, Pfunc({~seg[\perc].choose}),
-	\pitchRatio, 1,
+	\pitchRatio, Pfunc({~pitchRatio.(0)}),
 	\timeDispersion, 0,
 	\out, 0,
 )
@@ -156,7 +162,7 @@ Pdef(\vocal_5, Pbind(
 	\buf, ~samples[\vocal_5].bufnum,
 //	\seg, Pfunc({~seg[\vocal_5].choose}),
 	\seg, Pfunc({~seg[\vocal_5][1]}),
-	\pitchRatio, Pfunc({(2).midiratio}),
+	\pitchRatio, Pfunc({~pitchRatio.(2)}),
 	\timeDispersion, 0.8,
 	\out, 0,
 )
@@ -169,7 +175,7 @@ Pdef(\hats, Pbind(
 	\dur, 4,
 	\buf, ~samples[\hat].bufnum,
 	\seg, Pfunc({~seg[\hats].choose}),
-	\pitchRatio, 1,
+	\pitchRatio, Pfunc({~pitchRatio.(0)}),
 	\timeDispersion, 0,
 	\out, 0,
 )
@@ -182,7 +188,7 @@ Pdef(\kick, Pbind(
 	\dur, 4,
 	\buf, ~samples[\kick].bufnum,
 	\seg, Pfunc({~seg[\kick].choose}),
-	\pitchRatio, 1,
+	\pitchRatio, Pfunc({~pitchRatio.(0)}),
 	\timeDispersion, 0,
 	\out, 0,
 )
@@ -294,21 +300,6 @@ z.set(\amp, 2);
 z.free;
 ~samples[3].sampleRate
 ///////////////////////////////////////////// testing ///////////////////////
-(
-SynthDef(\testIf, {
-	arg flag;
-	var sig, dc, useWarp;
-	//useWarp = if((pitchRatio-1).asInteger, 0, 1);
-	dc = DC.ar(flag);
-	dc.scope;
-	sig = if (dc, SinOsc.ar(200), SinOsc.ar(1000))*0.5;
-	sig.scope;
-	Out.ar(0, sig!2);
-}).add;
-)
-z = Synth.new(\testIf, [\pitchRatio, 5])
-z.set(\pitchRatio, 1);
-z.free;
 ~player = ~samples[2].play;
 ~player.free;
 
