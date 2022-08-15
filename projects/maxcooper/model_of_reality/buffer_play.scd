@@ -33,17 +33,16 @@ s.waitForBoot{
 SynthDef(\dummy, { }).add;
 SynthDef.new(\bufrd_trig, {
 	arg amp=1, out=0, buf, seg=#[0, 2.285], pitchRatio, timeDispersion=0;// 2.285 = 4*60/105 = 4 beats
-	var sig, ptr, env, start, length, startSamp, endSamp;
+	var sig, sigWarp, sigBuf, ptr, env, start, length, startSamp, endSamp, durSamp;
 
+	durSamp = BufDur.ir(buf)*BufSampleRate.ir(buf);
 	start = seg[0]; length = seg[1];
 	startSamp = start * BufSampleRate.ir(buf);
 	endSamp = startSamp + (length * BufSampleRate.ir(buf));
-
 	ptr = Line.ar(startSamp, endSamp, length, doneAction: 2);
-	sig = BufRd.ar(2, buf, ptr, loop:0);
-
-	sig = PitchShift.ar(sig, 0.2, pitchRatio, timeDispersion: timeDispersion);
-
+	sigBuf = BufRd.ar(2, buf, ptr, loop:0);
+	sigWarp = Warp1.ar(2, buf, ptr/durSamp, pitchRatio, windowSize:0.1, envbufnum:-1/*hanning*/, overlaps: 32, windowRandRatio:timeDispersion, interp:4, mul: 0.3);
+	sig  = sigWarp;
 	env = Env.new([0, 1, 1, 0], [0.02, 0.96, 0.02] * length, curve: [-4, 0, 4]);
 	sig = sig * EnvGen.ar(env, doneAction: 2);
 	sig = sig * amp;
@@ -157,8 +156,8 @@ Pdef(\vocal_5, Pbind(
 	\buf, ~samples[\vocal_5].bufnum,
 //	\seg, Pfunc({~seg[\vocal_5].choose}),
 	\seg, Pfunc({~seg[\vocal_5][1]}),
-	\pitchRatio, Pfunc({0.midiratio}),
-	\timeDispersion, 0.0001,
+	\pitchRatio, Pfunc({(2).midiratio}),
+	\timeDispersion, 0.8,
 	\out, 0,
 )
 ).quant_(~tempoClock.beatsPerBar);
@@ -295,6 +294,21 @@ z.set(\amp, 2);
 z.free;
 ~samples[3].sampleRate
 ///////////////////////////////////////////// testing ///////////////////////
+(
+SynthDef(\testIf, {
+	arg flag;
+	var sig, dc, useWarp;
+	//useWarp = if((pitchRatio-1).asInteger, 0, 1);
+	dc = DC.ar(flag);
+	dc.scope;
+	sig = if (dc, SinOsc.ar(200), SinOsc.ar(1000))*0.5;
+	sig.scope;
+	Out.ar(0, sig!2);
+}).add;
+)
+z = Synth.new(\testIf, [\pitchRatio, 5])
+z.set(\pitchRatio, 1);
+z.free;
 ~player = ~samples[2].play;
 ~player.free;
 
