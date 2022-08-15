@@ -157,12 +157,11 @@ Pdef(\perc, Pbind(
 (
 Pdef(\vocal_5, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, 1.5,
+	\amp, 1,
 	\dur, 4,
 	\buf, ~samples[\vocal_5].bufnum,
-//	\seg, Pfunc({~seg[\vocal_5].choose}),
-	\seg, Pfunc({~seg[\vocal_5][1]}),
-	\pitchRatio, Pfunc({~pitchRatio.(2)}),
+	\seg, Pfunc({~seg[\vocal_5][2]}),
+	\pitchRatio, Pfunc({~pitchRatio.(0)}),
 	\timeDispersion, 0.8,
 	\out, 0,
 )
@@ -171,7 +170,7 @@ Pdef(\vocal_5, Pbind(
 (
 Pdef(\hats, Pbind(
 	\instrument, \bufrd_trig,
-	\amp, 1,
+	\amp, 1.5,
 	\dur, 4,
 	\buf, ~samples[\hat].bufnum,
 	\seg, Pfunc({~seg[\hats].choose}),
